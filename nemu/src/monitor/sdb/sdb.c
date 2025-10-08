@@ -42,17 +42,12 @@ static char* rl_gets() {
   return line_read;
 }
 
-static int cmd_c(char *args) {
-  cpu_exec(-1);
-  return 0;
-}
-
-
-static int cmd_q(char *args) {
-  return -1;
-}
-
+/* command handlers */
 static int cmd_help(char *args);
+static int cmd_c(char *args);
+static int cmd_si(char *args);
+static int cmd_q(char *args);
+static int cmd_info(char *args);
 
 static struct {
   const char *name;
@@ -61,10 +56,9 @@ static struct {
 } cmd_table [] = {
   { "help", "Display information about all supported commands", cmd_help },
   { "c", "Continue the execution of the program", cmd_c },
+  { "si", "Step [N] instructions (default 1) of the program", cmd_si },
+  { "info", "Display CPU or watchpoint info: info r / info w", cmd_info },
   { "q", "Exit NEMU", cmd_q },
-
-  /* TODO: Add more commands */
-
 };
 
 #define NR_CMD ARRLEN(cmd_table)
@@ -88,6 +82,48 @@ static int cmd_help(char *args) {
       }
     }
     printf("Unknown command '%s'\n", arg);
+  }
+  return 0;
+}
+
+static int cmd_c(char *args) {
+  cpu_exec(-1);
+  return 0;
+}
+
+static int cmd_si(char *args) {
+  int n = 1; // 默认的步数 = 1
+  if (args != NULL) {
+    n = atoi(args); // 将参数转换为整数
+    if (n <= 0) {
+      printf("Invalid number of steps: %s\n", args);
+      return 0;
+    }
+  }
+
+  cpu_exec(n); // 执行 n 步
+  return 0;
+}
+
+
+static int cmd_q(char *args) {
+  return -1;
+}
+
+static int cmd_info(char *args) {
+  if (args == NULL) {
+    printf("Usage: info r/w\n");
+    return 0;
+  }
+
+  if (strcmp(args, "r") == 0) {
+    isa_reg_display();
+  }
+  else if (strcmp(args, "w") == 0) {
+    TODO();
+  }
+  else {
+    printf("Unknown info command '%s'\n", args);
   }
   return 0;
 }
