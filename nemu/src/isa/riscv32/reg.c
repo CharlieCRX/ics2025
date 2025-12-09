@@ -25,9 +25,18 @@ const char *regs[] = {
 
 void isa_reg_display() {
   for (int i = 0; i < 32; i ++) {
-    printf("%s\t0x%08x\t%d\n", reg_name(i), gpr(i), gpr(i));
+    uint32_t val = gpr(i);
+
+    char hexbuf[16];
+    sprintf(hexbuf, "0x%x", val);   // 不补零
+
+    printf("%s\t%-10s\t%d\n", reg_name(i), hexbuf, val);
   }
-  printf("pc\t0x%08x\t%d\n", cpu.pc, cpu.pc);
+
+  char pcbuf[16];
+  sprintf(pcbuf, "0x%x", cpu.pc);
+
+  printf("pc\t%-10s\t%d\n", pcbuf, cpu.pc);
 }
 
 word_t isa_reg_str2val(const char *s, bool *success) {
