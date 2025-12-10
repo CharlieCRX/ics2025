@@ -15,6 +15,7 @@
 
 #include <isa.h>
 #include <cpu/cpu.h>
+#include <memory/vaddr.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "sdb.h"
@@ -48,6 +49,7 @@ static int cmd_c(char *args);
 static int cmd_si(char *args);
 static int cmd_q(char *args);
 static int cmd_info(char *args);
+static int cmd_x(char *args);
 
 static struct {
   const char *name;
@@ -59,6 +61,7 @@ static struct {
   { "si", "Step [N] instructions (default 1) of the program", cmd_si },
   { "info", "Display CPU or watchpoint info: info r / info w", cmd_info },
   { "q", "Exit NEMU", cmd_q },
+  { "x", "Evaluate EXPR as start address, output N consecutive 4-byte values in hex: x N EXPR", cmd_x},
 };
 
 #define NR_CMD ARRLEN(cmd_table)
@@ -127,6 +130,65 @@ static int cmd_info(char *args) {
     printf("Unknown info command '%s'\n", args);
   }
   return 0;
+}
+
+static int cmd_x(char *args) {
+  if (args == NULL) {
+    printf("Usage: x N EXPR\n");
+    return 0;
+  }
+
+  // 解析 N
+  char *N_str = strtok(args, " ");
+  if (N_str == NULL) {
+    printf("Missing N!\n");
+    return 0;
+  }
+  int N_num;
+  if (sscanf(N_str, "%d", &N_num) != 1  || N_num <= 0) {
+    printf("Invalid N!\n");
+    return 0;
+  }
+
+  // 解析 EXPR
+  char *expr = strtok(NULL, " ");
+  if (expr == NULL) {
+    printf("Missing EXPR!\n");
+    return 0;
+  }
+
+  vaddr_t vaddr;
+  if (sscanf(expr, "%x", &vaddr) != 1) {
+    printf("Invalid EXPR address!\n");
+    return 0;
+  }
+
+  // 打印解析的 N 和 addr
+  printf("N = %d, addr = " FMT_WORD "\n", N_num, vaddr);
+
+  // 每行输出格式：地址 + 4 个 32 位（4字节）的数据
+  for (int i = 0; i < N_num; i++)
+  {
+    // 行首输出地址
+    if (i % 4 == 0) {
+      printf(FMT_WORD ": ", vaddr);
+    }
+
+    // 获取 4 字节的数据
+    word_t data = vaddr_read(vaddr, 4);
+    vaddr += 4;
+
+    // 打印数据
+    printf(FMT_WORD "  ", data);
+
+    // 末尾加换行
+    if ((i + 1) % 4 == 0 || i == N_num - 1) {
+      printf("\n");
+    }
+  }
+  
+  return 0;
+
 }
 
 void sdb_set_batch_mode() {
