@@ -21,10 +21,12 @@
 #include <regex.h>
 
 enum {
-  TK_NOTYPE = 256, TK_EQ,
-
-  /* TODO: Add more token types */
-
+  TK_NOTYPE = 256, 
+  TK_EQ,
+  TK_DEC,
+  TK_HEX,
+  TK_REG,
+  TK_VAL
 };
 
 static struct rule {
@@ -32,12 +34,17 @@ static struct rule {
   int token_type;
 } rules[] = {
 
-  /* TODO: Add more rules.
-   * Pay attention to the precedence level of different rules.
-   */
-
-  {" +", TK_NOTYPE},    // spaces
-  {"\\+", '+'},         // plus
+  {" +", TK_NOTYPE},                   // spaces
+  {"0[xX][0-9a-fA-F]+", TK_HEX},       // hex
+  {"\\$(0|[a-zA-Z]+[0-9]*)", TK_REG},  // reg
+  {"[A-Za-z_][A-Za-z0-9_]*", TK_VAL},  // val
+  {"[0-9]+", TK_DEC},   // decimal
+  {"\\+", '+',},        // plus
+  {"\\-", '-'},         // 减
+  {"\\*", '*'},         // 乘
+  {"\\/", '/'},         // 除
+  {"\\(", '('},         // 左括号
+  {"\\)", ')'},         // 右括号
   {"==", TK_EQ},        // equal
 };
 
@@ -89,14 +96,21 @@ static bool make_token(char *e) {
 
         position += substr_len;
 
-        /* TODO: Now a new token is recognized with rules[i]. Add codes
-         * to record the token in the array `tokens'. For certain types
-         * of tokens, some extra actions should be performed.
-         */
+        if (rules[i].token_type == TK_NOTYPE) {
+          break;
+        }
+
+        tokens[nr_token].type = rules[i].token_type;
 
         switch (rules[i].token_type) {
-          default: TODO();
+          case TK_DEC: 
+          case TK_HEX:
+          case TK_REG:
+          case TK_VAL:
+            strncpy(tokens[nr_token].str, substr_start, substr_len); break;
+          default:;
         }
+        nr_token++;
 
         break;
       }
