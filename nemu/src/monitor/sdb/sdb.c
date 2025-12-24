@@ -50,6 +50,7 @@ static int cmd_si(char *args);
 static int cmd_q(char *args);
 static int cmd_info(char *args);
 static int cmd_x(char *args);
+static int cmd_p(char *args);
 
 static struct {
   const char *name;
@@ -62,6 +63,7 @@ static struct {
   { "info", "Display CPU or watchpoint info: info r / info w", cmd_info },
   { "q", "Exit NEMU", cmd_q },
   { "x", "Evaluate EXPR as start address, output N consecutive 4-byte values in hex: x N EXPR", cmd_x},
+  { "p", "Evaluate the expression EXPR and print the result: p EXPR", cmd_p },
 };
 
 #define NR_CMD ARRLEN(cmd_table)
@@ -189,6 +191,23 @@ static int cmd_x(char *args) {
   
   return 0;
 
+}
+
+static int cmd_p(char *args) {
+  if (args == NULL) {
+    printf("Usage: p EXPR\n");
+    return 0;
+  }
+
+  bool success = true;
+  word_t result = expr(args, &success);
+  if (!success) {
+    printf("Failed to evaluate expression: %s\n", args);
+    return 0;
+  }
+
+  printf("Result: " FMT_WORD "\n", result);
+  return 0;
 }
 
 void sdb_set_batch_mode() {

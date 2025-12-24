@@ -155,6 +155,18 @@ static bool make_token(char *e) {
   return true;
 }
 
+// 定义表达式求值错误码
+typedef enum {
+  EVAL_OK = 0,
+
+  EVAL_ERR_INVALID_RANGE,      // p > q
+  EVAL_ERR_BAD_EXPRESSION,     // 无法解析为合法表达式
+  EVAL_ERR_PAREN_MISMATCH,     // 括号结构错误
+  EVAL_ERR_PAREN_EMPTY,        // ()
+  EVAL_ERR_DIV_ZERO,           // 除零
+  // 后续可扩展
+} EvalErrType;
+EvalErrType eval(int p, int q, word_t *result);
 
 word_t expr(char *e, bool *success) {
   if (!make_token(e)) {
@@ -162,10 +174,276 @@ word_t expr(char *e, bool *success) {
     return 0;
   }
 
-  /* TODO: Insert codes to evaluate the expression. */
-  TODO();
+  word_t result;
+  EvalErrType eval_err = eval(0, nr_token - 1, &result);
+  if (eval_err != EVAL_OK) {
+    *success = false;
+    return 0;
+  }
 
-  return 0;
+  return result;
+}
+
+// 辅助函数：判断 Token 是否为数字类型
+static bool is_number(int p) {
+  int type = tokens[p].type;
+  return (type == TK_DEC || type == TK_HEX); // 目前仅支持十进制和十六进制
+}
+
+// 辅助函数：获取 Token 的数值
+static word_t token_value(int p) {
+  int type = tokens[p].type;
+  if (type == TK_DEC) {
+    return (word_t)strtoul(tokens[p].str, NULL, 10);
+  } else if (type == TK_HEX) {
+    return (word_t)strtoul(tokens[p].str, NULL, 16);
+  } else {
+    TODO(); // 日后支持更多类型
+    return 0;
+  }
+}
+
+/* --- 括号检查错误类型 --- */
+typedef enum {
+  PAREN_ERR_NONE,
+  PAREN_ERR_MISMATCH,    // 括号数量或顺序不匹配
+  PAREN_ERR_EMPTY,       // 空括号 ()
+  PAREN_ERR_NOT_WRAP,    // 不是(expr)类型：(1+2)-(3)或者 )1-2(
+  PAREN_ERR_INVALID_RANGE
+} ParenErrType;
+
+/**
+ * @brief 检查 [start, end] 范围内的 token 是否构成一个合法的 (expr) 结构
+ * 逻辑：
+ * 1. 首尾必须是 '(' 和 ')'
+ * 2. 遍历过程中，左括号必须与右括号抵消
+ * 3. 核心判定：在到达最后一个 token 前，括号 balance 不能提前归零（否则说明是 (a+b)+(c+d) 结构）
+ */
+static bool check_parentheses(int start, int end, ParenErrType *err_type) {
+  *err_type = PAREN_ERR_NONE;
+
+  if (start < 0 || end < 0 || start > end) {
+    *err_type = PAREN_ERR_INVALID_RANGE;
+    return false;
+  }
+
+  // 场景：首尾不匹配（直接判定不是 (expr)）
+  if (tokens[start].type != '(' || tokens[end].type != ')') {
+    *err_type = PAREN_ERR_NOT_WRAP;
+    return false;
+  }
+
+  // 场景：空括号 ()
+  if (start + 1 == end) {
+    *err_type = PAREN_ERR_EMPTY;
+    return false;
+  }
+
+  int balance = 0;
+  for (int i = start; i <= end; i++) {
+    if (tokens[i].type == '(') {
+      balance++;
+    } else if (tokens[i].type == ')') {
+      balance--;
+
+      // 场景：中途右括号多于左括号，如 (a+b))+(c
+      if (balance < 0) {
+        *err_type = PAREN_ERR_MISMATCH;
+        return false;
+      }
+
+      // 核心判定：如果 balance 提前归零且还没到 end，说明最外层括号没包住全段
+      // 例如：(1+2) + (3+4)，当处理到第一个 ')' 时 balance 为 0，但 i < end
+      if (balance == 0 && i < end) {
+        *err_type = PAREN_ERR_NOT_WRAP;
+        return false;
+      }
+    }
+  }
+
+  // 最终 balance 必须为 0（处理多出左括号的情况）
+  if (balance != 0) {
+    *err_type = PAREN_ERR_MISMATCH;
+    return false;
+  }
+
+  return true;
+}
+
+
+// 是否能作为一个二元运算符的前缀
+static bool can_be_binary_prefix(int i, int start) {
+  if (i < start) {
+    return false;
+  }
+
+  // 前一个 Token 是否是一个操作数的合法结束标志。
+  int type = tokens[i].type;
+  switch (type)
+  {
+  case TK_DEC:
+  case TK_HEX:
+  case TK_IDENT:
+  case TK_REG:
+  case ')':
+    return true;
+  
+  default:
+    return false;
+  }
+}
+
+static bool is_operator(int type) {
+  switch (type)
+  {
+  case '+':
+  case '-':
+  case '*':
+  case '/':
+    return true;
+  default:
+    return false;
+  }
+}
+
+// 判断运算符op2的优先级是否高于op1
+static bool has_higher_precedence(int op1, int op2) {
+  // op1是加减时
+  if (op1 == '+' || op1 == '-') {
+    if (op2 == '+' || op2 == '-') {
+      return true;
+    } else {
+      return false;
+    }
+  } else if (op1 == '*' || op1 == '/') {
+    return true;
+  }
+
+  return false;
+}
+
+// 查找 [start, end] 范围内的主运算符
+static int find_main_operator(int start, int end) {
+
+  int op_index = -1;
+  if (start > end) {
+    return op_index;
+  }
+
+  int balance = 0;
+  for (int i = start; i <= end; i++) {
+    // 排除括号内的运算符
+    if (tokens[i].type == '(') {
+      balance++;
+      continue;
+    }
+
+    if (tokens[i].type == ')') {
+      balance--;
+      continue;
+    }
+
+    if (balance == 0 && is_operator(tokens[i].type) && can_be_binary_prefix(i - 1, start)) {
+
+      if (op_index == -1 || has_higher_precedence(tokens[op_index].type, tokens[i].type)) {
+        op_index = i;
+      }
+    }
+  }
+
+  return op_index;
+}
+
+// 应用运算符计算结果
+static word_t apply_binary_operator(int op, word_t val1, word_t val2) {
+  switch (tokens[op].type) {
+    case '+': return val1 + val2;
+    case '-': return val1 - val2;
+    case '*': return val1 * val2;
+    case '/': return val1 / val2;
+    default: TODO(); return 0;
+  }
+}
+
+/**
+ * @brief 核心抽象函数：递归求值表达式
+ *
+ * @param p 起始 Token 下标
+ * @param q 结束 Token 下标
+ * @param res 存储结果的指针
+ * @return EvalErrType 错误码
+ */
+EvalErrType eval(int p, int q, word_t *res) {
+  if (p > q) {
+    return EVAL_ERR_INVALID_RANGE;
+  }
+
+  if (p == q) {
+    if (!is_number(p)) {
+      return EVAL_ERR_BAD_EXPRESSION;
+    }
+    *res = token_value(p);
+    return EVAL_OK;
+  }
+
+  ParenErrType perr;
+  bool is_paren = check_parentheses(p, q, &perr);
+
+  if (is_paren) {
+    return eval(p + 1, q - 1, res);
+  }
+
+  /* 括号相关的“致命结构错误” */
+  if (perr == PAREN_ERR_MISMATCH) {
+    return EVAL_ERR_PAREN_MISMATCH;
+  }
+  if (perr == PAREN_ERR_EMPTY) {
+    return EVAL_ERR_PAREN_EMPTY;
+  }
+  if (perr == PAREN_ERR_INVALID_RANGE) {
+    return EVAL_ERR_INVALID_RANGE;
+  }
+
+  /* NOT_WRAP → 普通表达式处理 */
+  int op = find_main_operator(p, q);
+
+  // 二元运算
+  if (op != -1) {
+    word_t val1, val2;
+    EvalErrType err;
+  
+    err = eval(p, op - 1, &val1);
+    if (err != EVAL_OK) {
+      return err;
+    }
+  
+    err = eval(op + 1, q, &val2);
+    if (err != EVAL_OK) {
+      return err;
+    }
+  
+    if (tokens[op].type == '/' && val2 == 0) {
+      return EVAL_ERR_DIV_ZERO;
+    }
+  
+    *res = apply_binary_operator(op, val1, val2);
+    return EVAL_OK;
+  } else {
+    // 一元运算 - 仅支持负号
+    if (tokens[p].type == '-') {
+      word_t val;
+      EvalErrType err = eval(p + 1, q, &val);
+      if (err != EVAL_OK) {
+        return err;
+      }
+      *res = -val;
+      return EVAL_OK;
+    } else {
+      return EVAL_ERR_BAD_EXPRESSION;
+    }
+  }
+
+
 }
 
 // 3. 核心抽象函数：检查 Token 长度 (严格模式)
