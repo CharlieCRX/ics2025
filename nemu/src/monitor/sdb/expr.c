@@ -19,7 +19,6 @@
  * Type 'man regex' for more information about POSIX regex functions.
  */
 #include <regex.h>
-#define MAX_TOKEN_STR_LEN 32
 
 enum {
   TK_NOTYPE = 256, 
@@ -88,12 +87,12 @@ void init_regex() {
   }
 }
 
+#define MAX_TOKEN_STR_LEN 32
+#define MAX_TOKEN_NUM 32
 typedef struct token {
   int type;
   char str[MAX_TOKEN_STR_LEN];
 } Token;
-
-#define MAX_TOKEN_NUM 32
 
 static Token tokens[MAX_TOKEN_NUM] __attribute__((used)) = {};
 static int nr_token __attribute__((used))  = 0;
@@ -139,7 +138,7 @@ static bool make_token(char *e) {
           printf("出错位置：%d\n%s\n%*.s^\n", position, e, position, "");
           return false; // 终止解析，避免数组越界
         }
-        
+
         // ========== 调用抽象函数：检查 Token 长度 ==========
         if (!check_token_length(rules[i].token_type, substr_start, substr_len, e, position)) {
           return false; // 长度超限，终止解析
@@ -482,7 +481,7 @@ static bool check_token_length(int token_type,
   // 步骤2：严格检查长度是否超限
   if (substr_len > MAX_TOKEN_STR_LEN) {
     // 步骤3：打印结构化错误信息 (精准定位问题)
-    fprintf(stderr, "❌ Token 过长错误 (严格模式)：\n");
+    fprintf(stderr, "Error: Token 过长错误 (严格模式)：\n");
     fprintf(stderr, "  - Token 类型：%s\n", get_token_type_name(token_type));
     fprintf(stderr, "  - 实际长度：%d (上限：%d)\n", substr_len, MAX_TOKEN_STR_LEN);
     fprintf(stderr, "  - 起始位置：%d\n", current_position - substr_len); // 计算Token起始位置
@@ -490,6 +489,30 @@ static bool check_token_length(int token_type,
     fprintf(stderr, "  - 完整表达式：%s\n", expr);
     fprintf(stderr, "  - 错误标记：%.*s^\n", current_position - substr_len, "");
     return false; // 长度超限，返回不合法
+  }
+
+  // ========== 新增：数值长度检测 ==========
+  if (token_type == TK_DEC) {
+    // uint32_t十进制最大为10位（4294967295），超过则溢出
+    if (substr_len > 10) {
+      fprintf(stderr, "Error: 十进制数%s长度超过10位，超出uint32_t范围\n", substr_start);
+      return false;
+    }
+    // 若长度等于10位，需进一步检查数值是否超过4294967295（避免"4294967296"这类10位溢出值）
+    if (substr_len == 10 && strcmp(substr_start, "4294967295") > 0) {
+      fprintf(stderr, "Error: 十进制数%s超出uint32_t最大值4294967295\n", substr_start);
+      return false;
+    }
+  } else if (token_type == TK_HEX) {
+    // uint32_t十六进制最大为8位（0xFFFFFFFF），超过则溢出（忽略0x前缀）
+    int hex_digit_len = substr_len;
+    if (substr_len >= 2 && substr_start[0] == '0' && (substr_start[1] == 'x' || substr_start[1] == 'X')) {
+      hex_digit_len -= 2; // 去掉0x前缀
+    }
+    if (hex_digit_len > 8) {
+      fprintf(stderr, "Error: 十六进制数%s长度超过8位，超出uint32_t范围\n", substr_start);
+      return false;
+    }
   }
 
   // 步骤4：长度合法，返回true
