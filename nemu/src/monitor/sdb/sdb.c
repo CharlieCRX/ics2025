@@ -206,7 +206,7 @@ static int cmd_p(char *args) {
     return 0;
   }
 
-  printf("Result: " FMT_WORD "\n", result);
+  printf("Result: " FMT_WORD "(%d)\n", result, (int)result);
   return 0;
 }
 

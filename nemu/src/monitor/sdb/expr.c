@@ -93,7 +93,9 @@ typedef struct token {
   char str[MAX_TOKEN_STR_LEN];
 } Token;
 
-static Token tokens[32] __attribute__((used)) = {};
+#define MAX_TOKEN_NUM 32
+
+static Token tokens[MAX_TOKEN_NUM] __attribute__((used)) = {};
 static int nr_token __attribute__((used))  = 0;
 // 辅助函数：检查 Token 长度(严格模式)
 static bool check_token_length(int token_type, 
@@ -107,7 +109,11 @@ static bool make_token(char *e) {
   int i;
   regmatch_t pmatch;
 
+  // 1. 重置计数（原有逻辑保留，移到清空后或前都可）
   nr_token = 0;
+  // 2. 清空整个tokens数组的内存（置0，消除脏数据）
+  // memset：将tokens数组的所有字节设为0，覆盖type/str等字段
+  memset(tokens, 0, sizeof(tokens));
 
   while (e[position] != '\0') {
     /* Try all rules one by one. */
@@ -125,6 +131,15 @@ static bool make_token(char *e) {
           break;
         }
 
+        // ========== 核心新增：添加Token前检查容量 ==========
+        if (nr_token >= MAX_TOKEN_NUM) {
+          // 友好的错误提示：告知超限、当前位置、最大容量
+          printf("Error: Token数量超出上限！最大支持%d个，当前尝试添加第%d个\n",
+                  MAX_TOKEN_NUM, nr_token + 1);
+          printf("出错位置：%d\n%s\n%*.s^\n", position, e, position, "");
+          return false; // 终止解析，避免数组越界
+        }
+        
         // ========== 调用抽象函数：检查 Token 长度 ==========
         if (!check_token_length(rules[i].token_type, substr_start, substr_len, e, position)) {
           return false; // 长度超限，终止解析
@@ -137,7 +152,9 @@ static bool make_token(char *e) {
           case TK_HEX:
           case TK_REG:
           case TK_IDENT:
-            strncpy(tokens[nr_token].str, substr_start, substr_len); break;
+            strncpy(tokens[nr_token].str, substr_start, substr_len); 
+            tokens[nr_token].str[substr_len] = '\0'; // 添加字符串结束符
+            break;
           default:;
         }
         nr_token++;
