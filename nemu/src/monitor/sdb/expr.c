@@ -197,6 +197,7 @@ word_t expr(char *e, bool *success) {
     return 0;
   }
 
+  *success = true;
   return result;
 }
 
@@ -518,3 +519,67 @@ static bool check_token_length(int token_type,
   // 步骤4：长度合法，返回true
   return true;
 }
+
+
+FILE *expr_file_ptr = NULL;
+/**
+ * @brief 测试表达式求值模块
+ *
+ * @param 文件路径 格式为：结果 表达式
+ */
+void test_expr(const char *expr_file) {
+  if (expr_file == NULL) {
+    return;
+  }
+
+  expr_file_ptr = fopen(expr_file, "r");
+  if (expr_file_ptr == NULL) {
+    fprintf(stderr, "无法打开表达式文件：%s\n", expr_file);
+    return;
+  }
+
+  char line[65635] = {0};
+  int line_number = 0;
+  bool success;
+
+  while (fgets(line, sizeof(line), expr_file_ptr) != NULL) {
+    line_number++;
+
+    // 去除行尾换行符
+    line[strcspn(line, "\n")] = '\0';
+
+    // 分割预期结果和表达式
+    char *space_pos = strchr(line, ' ');
+    if (space_pos == NULL) {
+      fprintf(stderr, "格式错误，缺少空格分隔符，行号：%d\n", line_number);
+      continue;
+    }
+
+    *space_pos = '\0';
+    char *expected_result_str = line;
+    char *expression_str = space_pos + 1;
+
+    // 求值表达式
+    word_t result = expr(expression_str, &success);
+    if (!success) {
+      fprintf(stderr, "表达式求值失败，行号：%d\n", line_number);
+      assert(0);
+      continue;
+    }
+
+    // 转换预期结果
+    word_t expected_result = (word_t)strtoul(expected_result_str, NULL, 10);
+
+    // 比较结果
+    if (result != expected_result) {
+      fprintf(stderr, "结果不匹配，行号：%d，预期：%u，实际：%u\n",
+              line_number, expected_result, result);
+      assert(0);
+    } else {
+      printf("表达式通过，行号：%d\n", line_number);
+    }
+  }
+
+  fclose(expr_file_ptr);
+}
+  

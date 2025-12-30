@@ -152,8 +152,8 @@ static uint32_t gen_rand_expr(char *c_buf, char *eval_buf, int *budget) {
     *budget = 0; // 用完所有预算
 
     // 2. 拼接表达式字符串到最终缓冲区
-    sprintf(c_buf, "((uint32_t)((uint32_t)%s %c (uint32_t)%s))", l_c, op, r_c);
-    sprintf(eval_buf, "%s %c %s",  l_eval, op, r_eval);
+    sprintf(c_buf, "((uint32_t)((uint32_t)(%s) %c (uint32_t)(%s)))", l_c, op, r_c);
+    sprintf(eval_buf, "(%s %c %s)", l_eval, op, r_eval);
 
     // 3. 计算结果并返回
     switch (op)

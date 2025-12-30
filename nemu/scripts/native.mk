@@ -25,6 +25,7 @@ compile_git:
 # Some convenient rules
 
 override ARGS ?= --log=$(BUILD_DIR)/nemu-log.txt
+# override ARGS += --expr=$(NEMU_HOME)/tools/gen-expr/build/input_only_add_and_sub
 override ARGS += $(ARGS_DIFF)
 
 # Command to execute NEMU
