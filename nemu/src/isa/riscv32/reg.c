@@ -24,7 +24,7 @@ const char *regs[] = {
 };
 
 void isa_reg_display() {
-  for (int i = 0; i < 32; i ++) {
+  for (int i = 0; i < ARRLEN(regs); i++) {
     uint32_t val = gpr(i);
 
     char hexbuf[16];
@@ -40,5 +40,19 @@ void isa_reg_display() {
 }
 
 word_t isa_reg_str2val(const char *s, bool *success) {
+  // 特殊的寄存器名称处理
+  if (strcmp(s, "0") == 0) {
+    *success = true;
+    return 0;
+  }
+
+  for (int i = 0; i < ARRLEN(regs); i++) {
+    if (strcmp(s, regs[i]) == 0) {
+      *success = true;
+      return (word_t)gpr(i);
+    }
+  }
+
+  *success = false;
   return 0;
 }
