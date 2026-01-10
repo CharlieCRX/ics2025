@@ -168,7 +168,7 @@ static int cmd_x(char *args) {
   // 打印解析的 N 和 addr
   printf("N = %d, addr = " FMT_WORD "\n", N_num, vaddr);
 
-  // 每行输出格式：地址 + 4 个 32 位（4字节）的数据
+  // 每行输出格式：地址 + 4 个 word_t (sizeof(word_t) 字节) 的数据
   for (int i = 0; i < N_num; i++)
   {
     // 行首输出地址
@@ -176,14 +176,14 @@ static int cmd_x(char *args) {
       printf(FMT_WORD ": ", vaddr);
     }
 
-    // 获取 4 字节的数据
-    word_t data = vaddr_read(vaddr, 4);
-    vaddr += 4;
+    // 获取一个 word_t 长度的数据
+    word_t data = vaddr_read(vaddr, sizeof(word_t));
+    vaddr += sizeof(word_t);
 
     // 打印数据
     printf(FMT_WORD "  ", data);
 
-    // 末尾加换行
+    // 每打印 4 个数据换行，或者在最后一个数据后换行
     if ((i + 1) % 4 == 0 || i == N_num - 1) {
       printf("\n");
     }

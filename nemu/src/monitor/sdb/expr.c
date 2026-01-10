@@ -14,6 +14,7 @@
 ***************************************************************************************/
 
 #include <isa.h>
+#include <memory/vaddr.h>
 
 /* We use the POSIX regex functions to process regular expressions.
  * Type 'man regex' for more information about POSIX regex functions.
@@ -204,13 +205,13 @@ word_t expr(char *e, bool *success) {
 /**
  * @brief 判断 Token 是否为一个主表达式（数字、寄存器等）
  */
-static bool is_primary_token(int p) {
+static bool is_primary_expr(int p) {
   int type = tokens[p].type;
   return (type == TK_DEC || type == TK_HEX || type == TK_REG);
 }
 
 // 辅助函数：获取 Token 的数值
-static word_t get_primary_value(int p, bool *success) {
+static word_t eval_primary_expr(int p, bool *success) {
   int type = tokens[p].type;
   *success = true;
 
@@ -389,6 +390,27 @@ static word_t apply_binary_operator(int op, word_t val1, word_t val2) {
   }
 }
 
+static EvalErrType eval_unary_expr(int p, int q, word_t *res) {
+  word_t val;
+  // 第一步：对运算符右边的表达式进行求值 [p + 1, q]
+  EvalErrType err = eval(p + 1, q, &val);
+  if (err != EVAL_OK) return err;
+
+  // 第二步：根据 tokens[p].type 执行相应的逻辑
+  switch (tokens[p].type) {
+    case '-':
+      *res = -val;
+      return EVAL_OK;
+
+    case '*':
+      *res = vaddr_read(val, sizeof(word_t));
+      return EVAL_OK;
+
+    default:
+      return EVAL_ERR_BAD_EXPRESSION;
+  }
+}
+
 /**
  * @brief 核心抽象函数：递归求值表达式
  *
@@ -403,11 +425,11 @@ EvalErrType eval(int p, int q, word_t *res) {
   }
 
   if (p == q) {
-    if (!is_primary_token(p)) {
+    if (!is_primary_expr(p)) {
       return EVAL_ERR_BAD_EXPRESSION;
     }
     bool success;
-    *res = get_primary_value(p, &success);
+    *res = eval_primary_expr(p, &success);
 
     if (!success) {
       return EVAL_ERR_REG_NOT_FOUND; // 寄存器名解析失败
@@ -458,21 +480,8 @@ EvalErrType eval(int p, int q, word_t *res) {
     *res = apply_binary_operator(op, val1, val2);
     return EVAL_OK;
   } else {
-    // 一元运算 - 仅支持负号
-    if (tokens[p].type == '-') {
-      word_t val;
-      EvalErrType err = eval(p + 1, q, &val);
-      if (err != EVAL_OK) {
-        return err;
-      }
-      *res = -val;
-      return EVAL_OK;
-    } else {
-      return EVAL_ERR_BAD_EXPRESSION;
-    }
+    return eval_unary_expr(p, q, res);
   }
-
-
 }
 
 // 3. 核心抽象函数：检查 Token 长度 (严格模式)
