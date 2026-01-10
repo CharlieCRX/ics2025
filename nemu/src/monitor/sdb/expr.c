@@ -180,7 +180,7 @@ typedef enum {
   EVAL_ERR_PAREN_MISMATCH,     // 括号结构错误
   EVAL_ERR_PAREN_EMPTY,        // ()
   EVAL_ERR_DIV_ZERO,           // 除零
-  // 后续可扩展
+  EVAL_ERR_REG_NOT_FOUND,      // 找不到指定的寄存器
 } EvalErrType;
 EvalErrType eval(int p, int q, word_t *result);
 
@@ -201,23 +201,30 @@ word_t expr(char *e, bool *success) {
   return result;
 }
 
-// 辅助函数：判断 Token 是否为数字类型
-static bool is_number(int p) {
+/**
+ * @brief 判断 Token 是否为一个主表达式（数字、寄存器等）
+ */
+static bool is_primary_token(int p) {
   int type = tokens[p].type;
-  return (type == TK_DEC || type == TK_HEX); // 目前仅支持十进制和十六进制
+  return (type == TK_DEC || type == TK_HEX || type == TK_REG);
 }
 
 // 辅助函数：获取 Token 的数值
-static word_t token_value(int p) {
+static word_t get_primary_value(int p, bool *success) {
   int type = tokens[p].type;
+  *success = true;
+
   if (type == TK_DEC) {
     return (word_t)strtoul(tokens[p].str, NULL, 10);
   } else if (type == TK_HEX) {
     return (word_t)strtoul(tokens[p].str, NULL, 16);
-  } else {
-    TODO(); // 日后支持更多类型
-    return 0;
+  } else if (type == TK_REG) {
+    // 调用现成接口，注意跳过 '$' 符号 (tokens[p].str + 1)
+    return isa_reg_str2val(tokens[p].str + 1, success);
   }
+
+  *success = false;
+  return 0;
 }
 
 /* --- 括号检查错误类型 --- */
@@ -396,10 +403,15 @@ EvalErrType eval(int p, int q, word_t *res) {
   }
 
   if (p == q) {
-    if (!is_number(p)) {
+    if (!is_primary_token(p)) {
       return EVAL_ERR_BAD_EXPRESSION;
     }
-    *res = token_value(p);
+    bool success;
+    *res = get_primary_value(p, &success);
+
+    if (!success) {
+      return EVAL_ERR_REG_NOT_FOUND; // 寄存器名解析失败
+    }
     return EVAL_OK;
   }
 
