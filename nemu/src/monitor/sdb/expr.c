@@ -27,7 +27,8 @@ enum {
   TK_DEC,
   TK_HEX,
   TK_REG,
-  TK_IDENT
+  TK_IDENT,
+  TK_AND,
 };
 
 static struct rule {
@@ -47,6 +48,7 @@ static struct rule {
   {"\\(", '('},         // 左括号
   {"\\)", ')'},         // 右括号
   {"==", TK_EQ},        // equal
+  {"&&", TK_AND},       // 与运算
 };
 
 // 辅助函数：获取 Token 类型的可读名称 (用于报错)
@@ -63,6 +65,7 @@ static const char* get_token_type_name(int token_type) {
     case '(':       return "左括号";
     case ')':       return "右括号";
     case TK_EQ:     return "TK_EQ (等于号)";
+    case TK_AND:    return "TK_AND (与运算)";
     default:        return "未知类型";
   }
 }
@@ -321,30 +324,23 @@ static bool can_be_binary_prefix(int i, int start) {
 static bool is_operator(int type) {
   switch (type)
   {
-  case '+':
-  case '-':
-  case '*':
-  case '/':
-    return true;
-  default:
-    return false;
+    case '+': case '-': case '*': case '/':
+    case TK_AND:
+    case TK_EQ:
+      return true;
+    default:
+      return false;
   }
 }
 
-// 判断运算符op2的优先级是否高于op1
-static bool has_higher_precedence(int op1, int op2) {
-  // op1是加减时
-  if (op1 == '+' || op1 == '-') {
-    if (op2 == '+' || op2 == '-') {
-      return true;
-    } else {
-      return false;
-    }
-  } else if (op1 == '*' || op1 == '/') {
-    return true;
+static int get_precedence(int type) {
+  switch (type) {
+    case TK_AND: return 1;
+    case TK_EQ:  return 2;
+    case '+': case '-': return 3;
+    case '*': case '/': return 4;
+    default: return 0;
   }
-
-  return false;
 }
 
 // 查找 [start, end] 范围内的主运算符
@@ -370,7 +366,7 @@ static int find_main_operator(int start, int end) {
 
     if (balance == 0 && is_operator(tokens[i].type) && can_be_binary_prefix(i - 1, start)) {
 
-      if (op_index == -1 || has_higher_precedence(tokens[op_index].type, tokens[i].type)) {
+      if (op_index == -1 || get_precedence(tokens[i].type) <= get_precedence(tokens[i].type)) {
         op_index = i;
       }
     }
@@ -386,8 +382,12 @@ static word_t apply_binary_operator(int op, word_t val1, word_t val2) {
     case '-': return val1 - val2;
     case '*': return val1 * val2;
     case '/': return val1 / val2;
-    default: TODO(); return 0;
-  }
+    case TK_AND: return (val1 && val2);
+    case TK_EQ:  return (val1 == val2);
+    default:
+      TODO();
+      return 0;
+    }
 }
 
 static EvalErrType eval_unary_expr(int p, int q, word_t *res) {
