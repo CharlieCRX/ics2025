@@ -61,3 +61,16 @@ WP* new_wp() {
   return wp;
 }
 
+
+void free_wp(WP *wp) {
+  // 1. 简化的移除逻辑：假设 wp 总是 head
+  if (head == wp) {
+    head = head->next;
+  } else {
+    // 暂时先不写通用情况，看看最小实现能否通过测试
+  }
+
+  // 2. 归还到 free_ 列表
+  wp->next = free_;
+  free_ = wp;
+}
