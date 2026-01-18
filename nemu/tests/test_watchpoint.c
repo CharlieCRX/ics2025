@@ -21,6 +21,18 @@ void test_new_wp_is_head() {
   assert(wp == head);
 }
 
+void test_more_than_one_new_wp_head() {
+  init_wp_pool();
+  WP *wp1 = new_wp();
+  WP *wp2 = new_wp();
+  WP *wp3 = new_wp();
+
+  assert(head == wp3);
+  assert(wp3->next == wp2);
+  assert(wp2->next == wp1);
+  assert(wp1->next == NULL);
+}
+
 
 void test_free_wp_returns_to_free_list() {
   init_wp_pool();
@@ -34,6 +46,7 @@ void test_free_wp_returns_to_free_list() {
 
   assert(count_after_new + 1 == count_after_free);
   assert(head == NULL);
+  assert(free_ == wp);
 }
 
 void test_free_wp_middle() {
@@ -52,6 +65,7 @@ void test_free_wp_middle() {
 int main() {
   test_new_wp_reduce_free_list();
   test_new_wp_is_head();
+  test_more_than_one_new_wp_head();
   test_free_wp_returns_to_free_list();
   test_free_wp_middle();
   printf("test framework works!\n");
