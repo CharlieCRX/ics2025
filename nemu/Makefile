@@ -61,3 +61,7 @@ else
 # Include rules to build NEMU
 include $(NEMU_HOME)/scripts/native.mk
 endif
+
+
+test:
+	@$(MAKE) --no-print-directory -f scripts/test.mk test
