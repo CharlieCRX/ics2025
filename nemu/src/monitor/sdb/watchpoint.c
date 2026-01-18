@@ -39,5 +39,22 @@ void init_wp_pool() {
   free_ = wp_pool;
 }
 
-/* TODO: Implement the functionality of watchpoint */
+static int count_wp_list(WP *wp) {
+  int cnt = 0;
+  while (wp) {
+    cnt++;
+    wp = wp->next;
+  }
+  return cnt;
+}
+
+WP* new_wp() {
+  assert(free_ != NULL);
+
+  WP *wp = free_;
+  free_ = free_->next;
+  wp->next = NULL;
+
+  return wp;
+}
 

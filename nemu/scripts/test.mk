@@ -9,8 +9,9 @@ NAME := test
 
 # 测试用源文件
 SRCS := \
-  src/monitor/sdb/watchpoint.c \
   tests/test_watchpoint.c
+
+INC_PATH += $(NEMU_HOME)/src
 
 # 不需要 difftest / am / run 逻辑
 include $(NEMU_HOME)/scripts/build.mk

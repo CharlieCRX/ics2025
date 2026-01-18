@@ -1,11 +1,20 @@
 #include <assert.h>
 #include <stdio.h>
+#include "monitor/sdb/watchpoint.c"
 
-void init_wp_pool(void);
 
-int main() {
+void test_new_wp_reduce_free_list() {
   init_wp_pool();
-  assert(1);
+
+  int before = count_wp_list(free_);
+  WP *wp = new_wp();
+  int after = count_wp_list(free_);
+
+  assert(wp != NULL);
+  assert(before - 1 == after);
+}
+int main() {
+  test_new_wp_reduce_free_list();
   printf("test framework works!\n");
   return 0;
 }
