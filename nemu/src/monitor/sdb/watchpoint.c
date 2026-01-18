@@ -67,7 +67,13 @@ void free_wp(WP *wp) {
   if (head == wp) {
     head = head->next;
   } else {
-    // 暂时先不写通用情况，看看最小实现能否通过测试
+    WP *p = head;
+    while (p != NULL && p->next != wp) {
+      p = p->next;
+    }
+
+    assert(wp != NULL);
+    p->next = wp->next;
   }
 
   // 2. 归还到 free_ 列表
