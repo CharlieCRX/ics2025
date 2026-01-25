@@ -2,72 +2,22 @@
 #include <stdio.h>
 #include "monitor/sdb/watchpoint.c"
 
-
-void test_new_wp_reduce_free_list() {
+// 测试不包括计算校验表达式的值
+// --- 测试 1：创建单个监视点成功 ---
+void test_new_wp_single_creation() {
   init_wp_pool();
-
-  int before = count_wp_list(free_);
-  WP *wp = new_wp();
-  int after = count_wp_list(free_);
-
+  int before = count_enabled_wp();
+  WP* wp = new_wp("1 + 2");
+  int after = count_enabled_wp();
   assert(wp != NULL);
-  assert(before - 1 == after);
-}
-
-void test_new_wp_is_head() {
-  init_wp_pool();
-
-  WP *wp = new_wp();
-  assert(wp == head);
-}
-
-void test_more_than_one_new_wp_head() {
-  init_wp_pool();
-  WP *wp1 = new_wp();
-  WP *wp2 = new_wp();
-  WP *wp3 = new_wp();
-
-  assert(head == wp3);
-  assert(wp3->next == wp2);
-  assert(wp2->next == wp1);
-  assert(wp1->next == NULL);
-}
-
-
-void test_free_wp_returns_to_free_list() {
-  init_wp_pool();
-
-  WP *wp = new_wp();
-  int count_after_new = count_wp_list(free_);
-
-  free_wp(wp);
-
-  int count_after_free = count_wp_list(free_);
-
-  assert(count_after_new + 1 == count_after_free);
-  assert(head == NULL);
-  assert(free_ == wp);
-}
-
-void test_free_wp_middle() {
-  init_wp_pool();
-  WP *wp1 = new_wp();
-  WP *wp2 = new_wp();
-  WP *wp3 = new_wp(); // 现在的顺序是 head -> wp3 -> wp2 -> wp1
-
-  // 尝试释放中间的节点 wp2
-  free_wp(wp2);
-
-  assert(wp3->next == wp1);
-  assert(free_ == wp2); // 验证 free_ 指向释放的 wp2 节点
+  assert(wp->enabled == true);
+  assert(strcmp(wp->expr_str, "1 + 2") == 0);
+  assert(wp->NO >= 0 && wp->NO < NR_WP);
+  assert(before + 1 == after);
 }
 
 int main() {
-  test_new_wp_reduce_free_list();
-  test_new_wp_is_head();
-  test_more_than_one_new_wp_head();
-  test_free_wp_returns_to_free_list();
-  test_free_wp_middle();
-  printf("test framework works!\n");
+  test_new_wp_single_creation();
+  printf("TEST OK!\n");
   return 0;
 }
