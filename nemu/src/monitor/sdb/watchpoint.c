@@ -95,7 +95,8 @@ static void insert_active_list_head(WP* wp) {
  * @details
  * Contract
  *
- *  - When: 在 watchpoint 系统需要创建一个新的监视点时调用
+ *  - When:
+ *      在 watchpoint 系统需要创建一个新的监视点时调用
  *
  *  - Preconditions (前置条件):
  *      1. 调用者应确保至少有一个空闲监视点可用；
@@ -104,24 +105,26 @@ static void insert_active_list_head(WP* wp) {
  *
  *  - Behavior (行为):
  *      1. 从空闲池中获取一个 WP 节点；
- *      2. 初始化节点：
- *         - 设置 enabled = true
- *         - 复制表达式字符串 expr_str
- *         - last_value 初始化为表达式求值模块返回的初值 - TDD 模式下不好处理
- *      3. 将节点插入 active list 的头部 (LIFO)；
- *         - 遍历 active list 时，最近创建的节点先访问
+ *      2. 为该监视点分配一个新的、唯一的编号 NO；
+ *      3. 初始化节点：
+ *         - 设置 wp->NO 为新分配的编号；
+ *         - 设置 enabled = true；
+ *         - 复制表达式字符串 expr_str；
+ *      4. 将该节点插入 active list 的头部（LIFO 语义）。
  *
  *  - Postconditions (后置条件):
  *      1. 返回值为创建好的 WP*；
- *      2. active list 链表头为新创建节点；
- *      3. 如果空闲池为空，则直接 assert；
- *      4. 其他节点保持原有顺序，未被破坏；
- *      5. 内部状态保持一致，方便后续 watchpoint_diff_and_collect 调用。
+ *      2. 返回的 WP 拥有一个在当前系统中唯一的 NO；
+ *      3. active list 链表头为新创建节点；
+ *      4. 如果空闲池为空，则直接 assert；
+ *      5. 其他节点保持原有顺序，未被破坏；
+ *      6. 内部状态保持一致，方便后续 watchpoint_diff_and_collect 调用。
  *
  *  - Invariants (不变式):
- *      1. CPU / diff 层不直接访问链表或节点内部字段，只通过接口获取触发信息；
- *      2. LIFO 遍历语义保持不变；
- *      3. 每个节点唯一对应一个监视点编号 NO。
+ *      1. 每个监视点的 NO 在其生命周期内保持不变；
+ *      2. 不同监视点的 NO 不重复；
+ *      3. CPU / diff 层不直接访问链表或节点内部字段；
+ *      4. active list 的遍历顺序遵循 LIFO 语义，与 NO 无关。
  *
  * @param expr_str 用户输入的监视表达式字符串
  * @return WP* 分配到 active 列表的监视点，若空闲池为空直接触发 assert

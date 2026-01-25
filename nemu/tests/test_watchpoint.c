@@ -45,6 +45,13 @@ void test_new_wp_single_creation() {
   assert(before + 1 == after);
 }
 
+// --- 测试 2：编号唯一性 ---
+void test_new_wp_unique_no() {
+  WP* wp1 = new_wp("expr1");
+  WP* wp2 = new_wp("expr2");
+  assert(wp1->NO != wp2->NO);
+}
+
 int main() {
   // 辅助函数测试
   test_insert_active_list_head_LIFO();
