@@ -1,6 +1,44 @@
 #include <assert.h>
 #include <stdio.h>
 #include "monitor/sdb/watchpoint.c"
+#include "assert_test_helper.h"
+
+#ifdef ENABLE_ASSERT_TEST
+// 程序员违约测试
+void test_new_wp_null_expr_should_assert() {
+  init_wp_pool();
+  EXPECT_ASSERT(
+    new_wp(NULL);
+  );
+}
+
+void test_new_wp_expr_too_long_should_assert() {
+  init_wp_pool();
+
+  char buf[1024];
+  memset(buf, 'a', sizeof(buf));
+  buf[sizeof(buf) - 1] = '\0';
+
+  EXPECT_ASSERT(
+    new_wp(buf);
+  );
+}
+
+
+void test_allocate_wp_when_pool_exhausted_should_assert() {
+  init_wp_pool();
+
+  for (int i = 0; i < NR_WP; i++) {
+    allocate_free_wp();
+  }
+
+  EXPECT_ASSERT(
+    new_wp("1 + 2");
+  );
+}
+
+#endif
+
 
 // 链表辅助函数测试
 void test_insert_active_list_head_LIFO() {
@@ -53,11 +91,22 @@ void test_new_wp_unique_no() {
 }
 
 int main() {
-  // 辅助函数测试
+  #ifdef ENABLE_ASSERT_TEST
+  printf("Running ASSERT tests...\n");
+  // ===== 程序员违约测试 =====
+  test_new_wp_null_expr_should_assert();
+  test_new_wp_expr_too_long_should_assert();
+  test_allocate_wp_when_pool_exhausted_should_assert();
+  printf("ASSERT tests passed!\n");
+  #endif
+
+  // ===== 辅助结构测试 =====
   test_insert_active_list_head_LIFO();
 
-  // WP 功能测试
+  // ===== 正常语义测试 =====
   test_new_wp_single_creation();
-  printf("TEST OK!\n");
+  test_new_wp_unique_no();
+
+  printf("ALL TESTS PASSED!\n");
   return 0;
 }

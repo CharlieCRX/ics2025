@@ -90,7 +90,7 @@ static void insert_active_list_head(WP* wp) {
 }
 
 /**
- * @brief 创建并返回一个新的监视点
+ * @brief 创建并返回一个有明确监视对象的监视点
  *
  * @details
  * Contract
@@ -100,16 +100,18 @@ static void insert_active_list_head(WP* wp) {
  *
  *  - Preconditions (前置条件):
  *      1. 调用者应确保至少有一个空闲监视点可用；
- *         空闲监视点由 allocate_free_wp() 提供；
- *      2. expr_str 字符串非空，长度不超过 WATCHPOINT_EXPR_MAX_LEN。
+ *      2. 输入的表达式字符串非空；
+ *      3. 输入的表达式长度，不超过监视点表达式最大长度。
+ *      若前置条件不满足，直接 assert 失败
  *
  *  - Behavior (行为):
  *      1. 从空闲池中获取一个 WP 节点；
  *      2. 为该监视点分配一个新的、唯一的编号 NO；
  *      3. 初始化节点：
- *         - 设置 wp->NO 为新分配的编号；
- *         - 设置 enabled = true；
- *         - 复制表达式字符串 expr_str；
+ *         - 为监视点分配新的编号；
+ *         - 设置监视点状态为启用（enabled = true）；
+ *         - 复制表达式字符串到监视点的表达式字段；
+ *         - 计算并存储表达式的初始值到 last_value 字段（可选，视具体实现而定）；
  *      4. 将该节点插入 active list 的头部（LIFO 语义）。
  *
  *  - Postconditions (后置条件):
@@ -132,6 +134,8 @@ static void insert_active_list_head(WP* wp) {
 WP* new_wp(const char* expr_str) {
   WP* wp = allocate_free_wp();
   assert(wp != NULL);               // 空闲池耗尽报错
+  assert(expr_str != NULL);                           // 非空表达式报错
+  assert(strlen(expr_str) < WATCHPOINT_EXPR_MAX_LEN); // 表达式过长报错
 
   wp->enabled = true;
   strcpy(wp->expr_str, expr_str);

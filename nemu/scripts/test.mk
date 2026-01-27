@@ -16,6 +16,13 @@ INC_PATH += $(NEMU_HOME)/src
 # 不需要 difftest / am / run 逻辑
 include $(NEMU_HOME)/scripts/build.mk
 
+# 取消 NDEBUG，以启用 assert 语句
+CFLAGS += -UNDEBUG
+
+# 启用断言测试相关代码
+CFLAGS += -DENABLE_ASSERT_TEST
+
+
 # 运行测试
 test: app
 	@echo "Running tests..."
