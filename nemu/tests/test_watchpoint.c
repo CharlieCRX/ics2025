@@ -4,7 +4,7 @@
 #include "assert_test_helper.h"
 
 #ifdef ENABLE_ASSERT_TEST
-// 程序员违约测试
+// new_wp 的红灯测试清单
 void test_new_wp_null_expr_should_assert() {
   init_wp_pool();
   EXPECT_ASSERT(
@@ -40,7 +40,7 @@ void test_allocate_wp_when_pool_exhausted_should_assert() {
 #endif
 
 
-// 链表辅助函数测试
+// new_wp 绿灯测试清单
 void test_insert_active_list_head_LIFO() {
   init_wp_pool(); // 清空 active list 和 free list
 
@@ -84,10 +84,84 @@ void test_new_wp_single_creation() {
 }
 
 // --- 测试 2：编号唯一性 ---
-void test_new_wp_unique_no() {
-  WP* wp1 = new_wp("expr1");
-  WP* wp2 = new_wp("expr2");
+void test_wp_no_should_be_unique_when_multiple_created() {
+  init_wp_pool();
+
+  WP* wp1 = new_wp("1");
+  WP* wp2 = new_wp("2");
+  WP* wp3 = new_wp("3");
+
   assert(wp1->NO != wp2->NO);
+  assert(wp1->NO != wp3->NO);
+  assert(wp2->NO != wp3->NO);
+}
+
+void test_wp_no_should_not_conflict_after_deletion() {
+  init_wp_pool();
+
+  WP* wp1 = new_wp("1");
+  WP* wp2 = new_wp("2");
+
+  int no2 = wp2->NO;
+
+  free_wp(wp1);
+
+  WP* wp3 = new_wp("3");
+
+  // wp3 不得与仍存活的 wp2 冲突
+  assert(wp3->NO != no2);
+
+  // 若实现允许复用，也不能与已存活的冲突
+}
+
+void test_wp_no_should_be_stable_after_creation() {
+  init_wp_pool();
+
+  WP* wp = new_wp("1");
+  int original_no = wp->NO;
+
+  // 创建其他 wp
+  new_wp("2");
+  new_wp("3");
+
+  assert(wp->NO == original_no);
+}
+
+void test_wp_no_should_not_change_due_to_lifo_insertion() {
+  init_wp_pool();
+
+  WP* wp1 = new_wp("1");
+  int no1 = wp1->NO;
+
+  new_wp("2"); // 插入头部
+
+  assert(wp1->NO == no1);
+}
+
+
+void test_wp_no_should_increase_monotonically() {
+  init_wp_pool();
+
+  WP* wp1 = new_wp("1");
+  WP* wp2 = new_wp("2");
+  WP* wp3 = new_wp("3");
+
+  assert(wp1->NO < wp2->NO);
+  assert(wp2->NO < wp3->NO);
+}
+
+void test_wp_no_should_keep_increasing_after_deletion() {
+  init_wp_pool();
+
+  WP* wp1 = new_wp("1");
+  WP* wp2 = new_wp("2");
+
+  int no2 = wp2->NO;
+  free_wp(wp1);
+
+  WP* wp3 = new_wp("3");
+
+  assert(wp3->NO > no2);
 }
 
 int main() {
@@ -105,7 +179,12 @@ int main() {
 
   // ===== 正常语义测试 =====
   test_new_wp_single_creation();
-  test_new_wp_unique_no();
+  test_wp_no_should_be_unique_when_multiple_created();
+  test_wp_no_should_not_conflict_after_deletion();
+  test_wp_no_should_be_stable_after_creation();
+  test_wp_no_should_not_change_due_to_lifo_insertion();
+  test_wp_no_should_increase_monotonically();
+  test_wp_no_should_keep_increasing_after_deletion();
 
   printf("ALL TESTS PASSED!\n");
   return 0;

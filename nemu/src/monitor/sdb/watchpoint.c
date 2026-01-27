@@ -18,6 +18,8 @@
 #define NR_WP 32
 #define WATCHPOINT_EXPR_MAX_LEN 128
 
+static int next_wp_no = 0;
+
 typedef struct watchpoint {
   int NO;                                  // 编号
   char expr_str[WATCHPOINT_EXPR_MAX_LEN];  // 原始表达式字符串
@@ -106,13 +108,12 @@ static void insert_active_list_head(WP* wp) {
  *
  *  - Behavior (行为):
  *      1. 从空闲池中获取一个 WP 节点；
- *      2. 为该监视点分配一个新的、唯一的编号 NO；
- *      3. 初始化节点：
- *         - 为监视点分配新的编号；
+ *      2. 初始化节点：
+ *         - 为该监视点分配一个新的、唯一的编号 NO；
  *         - 设置监视点状态为启用（enabled = true）；
  *         - 复制表达式字符串到监视点的表达式字段；
  *         - 计算并存储表达式的初始值到 last_value 字段（可选，视具体实现而定）；
- *      4. 将该节点插入 active list 的头部（LIFO 语义）。
+ *      3. 将该节点插入 active list 的头部（LIFO 语义）。
  *
  *  - Postconditions (后置条件):
  *      1. 返回值为创建好的 WP*；
@@ -123,20 +124,26 @@ static void insert_active_list_head(WP* wp) {
  *      6. 内部状态保持一致，方便后续 watchpoint_diff_and_collect 调用。
  *
  *  - Invariants (不变式):
+ *      NO 的性质：
  *      1. 每个监视点的 NO 在其生命周期内保持不变；
  *      2. 不同监视点的 NO 不重复；
- *      3. CPU / diff 层不直接访问链表或节点内部字段；
- *      4. active list 的遍历顺序遵循 LIFO 语义，与 NO 无关。
+ *      4. active list 的遍历顺序遵循 LIFO 语义，与 NO 无关;
+ *      5. 所有成功创建的监视点，其 NO 严格单调递增。
+ *      
+ *      分层设计原则：
+ *      CPU / diff 层不直接访问链表或节点内部字段。
+ *    
  *
  * @param expr_str 用户输入的监视表达式字符串
  * @return WP* 分配到 active 列表的监视点，若空闲池为空直接触发 assert
  */
 WP* new_wp(const char* expr_str) {
   WP* wp = allocate_free_wp();
-  assert(wp != NULL);               // 空闲池耗尽报错
+  assert(wp != NULL);                                 // 空闲池耗尽报错
   assert(expr_str != NULL);                           // 非空表达式报错
   assert(strlen(expr_str) < WATCHPOINT_EXPR_MAX_LEN); // 表达式过长报错
 
+  wp->NO = next_wp_no++;
   wp->enabled = true;
   strcpy(wp->expr_str, expr_str);
   // bool success = false;
