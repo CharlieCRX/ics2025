@@ -164,6 +164,26 @@ void test_wp_no_should_keep_increasing_after_deletion() {
   assert(wp3->NO > no2);
 }
 
+// 直接访问 head 是“可接受的过渡方案”，但不是终态
+void test_new_wp_should_follow_LIFO_order() {
+  init_wp_pool();
+
+  WP* wp1 = new_wp("1");
+  WP* wp2 = new_wp("2");
+  WP* wp3 = new_wp("3");
+
+  WP* order[10];
+  int idx = 0;
+  for (WP* cur = head; cur != NULL; cur = cur->next) {
+    order[idx++] = cur;
+  }
+
+  assert(idx == 3);
+  assert(order[0] == wp3);
+  assert(order[1] == wp2);
+  assert(order[2] == wp1);
+}
+
 int main() {
   #ifdef ENABLE_ASSERT_TEST
   printf("Running ASSERT tests...\n");
@@ -185,6 +205,8 @@ int main() {
   test_wp_no_should_not_change_due_to_lifo_insertion();
   test_wp_no_should_increase_monotonically();
   test_wp_no_should_keep_increasing_after_deletion();
+
+  test_new_wp_should_follow_LIFO_order();
 
   printf("ALL TESTS PASSED!\n");
   return 0;

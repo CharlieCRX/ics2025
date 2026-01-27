@@ -112,7 +112,7 @@ static void insert_active_list_head(WP* wp) {
  *         - 为该监视点分配一个新的、唯一的编号 NO；
  *         - 设置监视点状态为启用（enabled = true）；
  *         - 复制表达式字符串到监视点的表达式字段；
- *         - 计算并存储表达式的初始值到 last_value 字段（可选，视具体实现而定）；
+ *         - 计算并存储表达式的初始值到 last_value 字段（表达式的求值由 watchpoint 模块内部完成）；
  *      3. 将该节点插入 active list 的头部（LIFO 语义）。
  *
  *  - Postconditions (后置条件):
