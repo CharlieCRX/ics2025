@@ -20,7 +20,7 @@ include $(NEMU_HOME)/scripts/build.mk
 CFLAGS += -UNDEBUG
 
 # 启用断言测试相关代码
-# CFLAGS += -DENABLE_ASSERT_TEST
+CFLAGS += -DENABLE_ASSERT_TEST
 
 
 # 运行测试

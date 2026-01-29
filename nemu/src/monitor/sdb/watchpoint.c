@@ -20,6 +20,14 @@
 
 static int next_wp_no = 0;
 
+typedef bool (*wp_eval_func_t)(const char *expr, word_t *result);
+
+static wp_eval_func_t wp_eval = NULL;
+
+void wp_set_eval_func(wp_eval_func_t func) {
+  wp_eval = func;
+}
+
 typedef struct watchpoint {
   int NO;                                  // 编号
   char expr_str[WATCHPOINT_EXPR_MAX_LEN];  // 原始表达式字符串
@@ -138,16 +146,23 @@ static void insert_active_list_head(WP* wp) {
  * @return WP* 分配到 active 列表的监视点，若空闲池为空直接触发 assert
  */
 WP* new_wp(const char* expr_str) {
-  WP* wp = allocate_free_wp();
-  assert(wp != NULL);                                 // 空闲池耗尽报错
   assert(expr_str != NULL);                           // 非空表达式报错
   assert(strlen(expr_str) < WATCHPOINT_EXPR_MAX_LEN); // 表达式过长报错
+  assert(wp_eval != NULL);                            // 未设置求值函数报错
 
+  word_t init_value;
+  bool ok = wp_eval(expr_str, &init_value);
+  if (!ok) {
+    return NULL;
+  }
+
+  WP* wp = allocate_free_wp();
+  assert(wp != NULL);                                 // 空闲池耗尽报错
+
+  wp->last_value = init_value;
   wp->NO = next_wp_no++;
   wp->enabled = true;
   strcpy(wp->expr_str, expr_str);
-  // bool success = false;
-  // wp->last_value = expr(wp->expr_str, &success);
 
   insert_active_list_head(wp);
   return wp;
