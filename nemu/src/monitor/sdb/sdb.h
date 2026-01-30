@@ -20,13 +20,4 @@
 
 word_t expr(char *e, bool *success);
 
-// 前置声明 WP 结构体
-typedef struct watchpoint WP;
-
-// 监视点相关的公共接口
-void init_wp_pool();
-WP* new_wp(const char *expr_str);
-void free_wp(WP *wp);
-void wp_set_eval_func(bool (*func)(const char *expr, word_t *result));
-
 #endif

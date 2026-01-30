@@ -23,7 +23,13 @@
 static int is_batch_mode = false;
 
 void init_regex();
+
+// 监视点相关的公共接口
+typedef struct watchpoint WP;
 void init_wp_pool();
+WP* new_wp(const char *expr_str);
+void free_wp(WP *wp);
+void wp_set_eval_func(bool (*func)(const char *expr, word_t *result));
 
 /* We use the `readline' library to provide more flexibility to read from stdin. */
 static char* rl_gets() {
