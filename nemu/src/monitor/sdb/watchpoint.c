@@ -89,6 +89,58 @@ static void insert_active_list_head(WP* wp) {
   head = wp;
 }
 
+
+/**
+ * @brief 遍历当前所有 active 状态的监视点
+ *
+ * 语义说明：
+ *  1. 仅遍历「active list」中的监视点：
+ *     - 即已经创建、尚未释放的监视点；
+ *     - 是否 enabled 不影响其是否被遍历。
+ *
+ *  2. 遍历顺序严格遵循 active list 的链表顺序：
+ *     - 若 active list 使用头插法（LIFO），则最近创建的监视点最先被访问；
+ *     - 顺序是确定且稳定的，可用于行为级测试。
+ *
+ *  3. 对每一个 active 的监视点 wp，调用一次访问函数：
+ *
+ *        fn(wp, user);
+ *
+ *     - wp 保证非 NULL，且在回调期间是有效对象；
+ *     - wp 以 const WP * 形式传入，访问者不得修改监视点状态。
+ *
+ *  4. user 参数：
+ *     - 原样透传给访问函数；
+ *     - watchpoint 层不解释、不修改该指针；
+ *     - 允许为 NULL。
+ *
+ *  5. 若当前不存在任何 active 的监视点：
+ *     - 不调用 fn；
+ *     - 不产生任何副作用；
+ *     - 直接返回。
+ *
+ * 契约约束（Contract）：
+ *  - fn 不得为 NULL：
+ *      - fn == NULL 属于程序员错误（契约违约），
+ *        在 Debug 构建下应通过 assert 及早暴露问题。
+ *
+ * 副作用说明：
+ *  - 本函数自身不会：
+ *      - 修改 active/free 链表结构；
+ *      - 分配或释放监视点；
+ *  - 访问函数 fn 的副作用由其自身负责。
+ */
+typedef void (*wp_visit_fn)(const WP *wp, void *user);
+void wp_foreach_active(wp_visit_fn fn, void *user) {
+  assert(fn != NULL);
+
+  WP *cur = head;
+  while (cur != NULL) {
+    fn(cur, user);
+    cur = cur->next;
+  }
+}
+
 /**
  * @brief 创建并返回一个有明确监视对象的监视点
  *

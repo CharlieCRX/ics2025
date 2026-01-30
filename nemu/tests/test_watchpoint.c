@@ -298,6 +298,33 @@ void test_new_wp_should_follow_LIFO_order() {
   wp_set_eval_func(NULL);
 }
 
+
+
+// =========== wp_foreach_active ============
+static int visit_count = 0;
+static void count_visitor(const WP *wp, void *user) {
+  (void)wp;
+  (void)user;
+  visit_count++;
+}
+
+void test_wp_foreach_active_calls_visitor_for_each_active_wp(void) {
+  init_wp_pool();
+  wp_set_eval_func(mock_eval);
+
+  // 准备 2 个 active watchpoint
+  new_wp("1");
+  new_wp("2");
+
+  visit_count = 0;
+
+  wp_foreach_active(count_visitor, NULL);
+
+  // 关键断言：visitor 被调用了 2 次
+  assert(visit_count == 2);
+  visit_count = 0;
+  wp_set_eval_func(NULL);
+}
 int main() {
   #ifdef ENABLE_ASSERT_TEST
   printf("Running ASSERT tests...\n");
@@ -321,8 +348,10 @@ int main() {
   test_wp_no_should_not_change_due_to_lifo_insertion();
   test_wp_no_should_increase_monotonically();
   test_wp_no_should_keep_increasing_after_deletion();
-
   test_new_wp_should_follow_LIFO_order();
+
+  // ====== 遍历结构测试 ========
+  test_wp_foreach_active_calls_visitor_for_each_active_wp();
 
   printf("ALL TESTS PASSED!\n");
   return 0;
