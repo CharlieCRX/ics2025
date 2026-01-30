@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 #include "monitor/sdb/watchpoint.c"
 #include "assert_test_helper.h"
 
@@ -325,6 +326,37 @@ void test_wp_foreach_active_calls_visitor_for_each_active_wp(void) {
   visit_count = 0;
   wp_set_eval_func(NULL);
 }
+
+static int order_count = 0;
+static char expr_list[10][10] = {};
+static void order_visitor(const WP *wp, void *user) {
+  (void)user;
+  strcpy(expr_list[order_count], wp->expr_str);
+  order_count++;
+}
+static const char expected_expr_list[10][10] = {
+  "OK",
+  "GOOD",
+  "ARE",
+  "YOU"
+};
+
+void test_wp_foreach_active_order_is_lifo() {
+  init_wp_pool();
+  wp_set_eval_func(mock_eval);
+
+  new_wp("YOU");
+  new_wp("ARE");
+  new_wp("GOOD");
+  new_wp("OK");
+
+  wp_foreach_active(order_visitor, NULL);
+
+  for (int i = 0; i < order_count; i++) {
+    assert(strcmp(expected_expr_list[i], expr_list[i]) == 0);
+  }
+}
+
 int main() {
   #ifdef ENABLE_ASSERT_TEST
   printf("Running ASSERT tests...\n");
@@ -352,6 +384,7 @@ int main() {
 
   // ====== 遍历结构测试 ========
   test_wp_foreach_active_calls_visitor_for_each_active_wp();
+  test_wp_foreach_active_order_is_lifo();
 
   printf("ALL TESTS PASSED!\n");
   return 0;
