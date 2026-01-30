@@ -212,7 +212,7 @@ static int cmd_p(char *args) {
   return 0;
 }
 
-
+// 监视点表达式求值函数适配器
 static bool sdb_eval(const char *expr_str, word_t *result) {
   bool success = true;
   *result = expr((char *)expr_str, &success);
@@ -225,9 +225,7 @@ static int cmd_w(char *args) {
     printf("Usage: w EXPR\n");
     return 0;
   }
-
-  init_wp_pool();
-  wp_set_eval_func(sdb_eval);
+  
   WP *wp = new_wp(args);
   if (wp == NULL) {
     printf("Failed to set watchpoint for expression: %s\n", args);
@@ -286,4 +284,7 @@ void init_sdb() {
 
   /* Initialize the watchpoint pool. */
   init_wp_pool();
+
+  /* Set the expression evaluation function for watchpoints. */
+  wp_set_eval_func(sdb_eval);
 }

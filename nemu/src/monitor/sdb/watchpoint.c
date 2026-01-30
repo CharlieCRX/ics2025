@@ -149,8 +149,6 @@ WP* new_wp(const char* expr_str) {
   strcpy(wp->expr_str, expr_str);
 
   insert_active_list_head(wp);
-  Log("Created new watchpoint NO=%d for expr='%s' with initial value=" FMT_WORD,
-      wp->NO, wp->expr_str, wp->last_value);
   return wp;
 }
 
