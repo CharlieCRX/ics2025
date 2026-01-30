@@ -248,3 +248,41 @@ void free_wp(WP *wp) {
  * @return WatchpointDiffResult 触发信息结构
  */
 WatchpointDiffResult watchpoint_diff_and_collect(void);
+
+void wp_format(const WP *wp, char *buf, size_t len) {
+  const int EXPR_COL_WIDTH = 24;
+
+  char expr_buf[EXPR_COL_WIDTH + 1];
+
+  size_t expr_len = strlen(wp->expr_str);
+  if (expr_len <= EXPR_COL_WIDTH) {
+    snprintf(expr_buf, sizeof(expr_buf), "%.*s", (int)expr_len, wp->expr_str);
+  } else {
+    snprintf(expr_buf, sizeof(expr_buf), "%.*s...",
+             EXPR_COL_WIDTH - 3, wp->expr_str);
+  }
+
+  snprintf(buf, len,
+           "%-4d  %-3c  %-24s  0x%x",
+           wp->NO,
+           wp->enabled ? 'y' : 'n',
+           expr_buf,
+           wp->last_value);
+}
+
+/* visitor：打印单个 watchpoint */
+static void wp_display_visitor(const WP *wp, void *user) {
+  (void)user;
+
+  char line[128];
+  wp_format(wp, line, sizeof(line));
+  puts(line);
+}
+
+/* 对外接口：info w */
+void watchpoints_display(void) {
+  printf("Num   Enb  Expression        Value\n");
+  printf("----------------------------------------\n");
+
+  wp_foreach_active(wp_display_visitor, NULL);
+}

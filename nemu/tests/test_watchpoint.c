@@ -313,6 +313,7 @@ void test_wp_foreach_active_calls_visitor_for_each_active_wp(void) {
   init_wp_pool();
   wp_set_eval_func(mock_eval);
 
+  visit_count = 0;
   // 准备 2 个 active watchpoint
   new_wp("1");
   new_wp("2");
@@ -344,6 +345,7 @@ static const char expected_expr_list[10][10] = {
 void test_wp_foreach_active_order_is_lifo() {
   init_wp_pool();
   wp_set_eval_func(mock_eval);
+  order_count = 0;
 
   new_wp("YOU");
   new_wp("ARE");

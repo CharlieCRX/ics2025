@@ -30,6 +30,7 @@ void init_wp_pool();
 WP* new_wp(const char *expr_str);
 void free_wp(WP *wp);
 void wp_set_eval_func(bool (*func)(const char *expr, word_t *result));
+void watchpoints_display(void);
 
 /* We use the `readline' library to provide more flexibility to read from stdin. */
 static char* rl_gets() {
@@ -134,7 +135,7 @@ static int cmd_info(char *args) {
     isa_reg_display();
   }
   else if (strcmp(args, "w") == 0) {
-    TODO();
+    watchpoints_display();
   }
   else {
     printf("Unknown info command '%s'\n", args);
