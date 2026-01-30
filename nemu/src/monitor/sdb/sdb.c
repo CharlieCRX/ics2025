@@ -51,6 +51,7 @@ static int cmd_q(char *args);
 static int cmd_info(char *args);
 static int cmd_x(char *args);
 static int cmd_p(char *args);
+static int cmd_w(char *args);
 
 static struct {
   const char *name;
@@ -64,6 +65,7 @@ static struct {
   { "q", "Exit NEMU", cmd_q },
   { "x", "Evaluate EXPR as start address, output N consecutive 4-byte values in hex: x N EXPR", cmd_x},
   { "p", "Evaluate the expression EXPR and print the result: p EXPR", cmd_p },
+  { "w", "Set a watchpoint for expression EXPR: w EXPR", cmd_w },
 };
 
 #define NR_CMD ARRLEN(cmd_table)
@@ -207,6 +209,32 @@ static int cmd_p(char *args) {
   }
 
   printf("Result: " FMT_WORD "(%u)\n", result, result);
+  return 0;
+}
+
+
+static bool sdb_eval(const char *expr_str, word_t *result) {
+  bool success = true;
+  *result = expr((char *)expr_str, &success);
+  return success;
+}
+
+/* Set a watchpoint for the given expression */
+static int cmd_w(char *args) {
+  if (args == NULL) {
+    printf("Usage: w EXPR\n");
+    return 0;
+  }
+
+  init_wp_pool();
+  wp_set_eval_func(sdb_eval);
+  WP *wp = new_wp(args);
+  if (wp == NULL) {
+    printf("Failed to set watchpoint for expression: %s\n", args);
+    return 0;
+  }
+
+  printf("Watchpoint created successfully\n");
   return 0;
 }
 

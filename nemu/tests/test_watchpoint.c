@@ -6,6 +6,36 @@
 
 static int eval_call_count = 0;
 
+static int count_enabled_wp() {
+  int cnt = 0;
+  WP* p = head;
+  while (p) {
+    if (p->enabled) cnt++;
+    p = p->next;
+  }
+  return cnt;
+}
+
+static int active_list_size(void) {
+  int cnt = 0;
+  WP *p = head;
+  while (p != NULL) {
+    cnt++;
+    p = p->next;
+  }
+  return cnt;
+}
+
+static int free_list_size(void) {
+  int cnt = 0;
+  WP *p = free_;
+  while (p != NULL) {
+    cnt++;
+    p = p->next;
+  }
+  return cnt;
+}
+
 bool mock_eval(const char *expr, word_t *result) {
   eval_call_count++;
   *result = 123;

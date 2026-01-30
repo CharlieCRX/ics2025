@@ -56,36 +56,6 @@ void init_wp_pool() {
   free_ = wp_pool;
 }
 
-int count_enabled_wp() {
-  int cnt = 0;
-  WP* p = head;
-  while (p) {
-    if (p->enabled) cnt++;
-    p = p->next;
-  }
-  return cnt;
-}
-
-int active_list_size(void) {
-  int cnt = 0;
-  WP *p = head;
-  while (p != NULL) {
-    cnt++;
-    p = p->next;
-  }
-  return cnt;
-}
-
-int free_list_size(void) {
-  int cnt = 0;
-  WP *p = free_;
-  while (p != NULL) {
-    cnt++;
-    p = p->next;
-  }
-  return cnt;
-}
-
 /**
  * @brief 从空闲监视点池分配一个可用节点
  *
@@ -179,6 +149,8 @@ WP* new_wp(const char* expr_str) {
   strcpy(wp->expr_str, expr_str);
 
   insert_active_list_head(wp);
+  Log("Created new watchpoint NO=%d for expr='%s' with initial value=" FMT_WORD,
+      wp->NO, wp->expr_str, wp->last_value);
   return wp;
 }
 
