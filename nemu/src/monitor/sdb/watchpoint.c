@@ -66,6 +66,26 @@ int count_enabled_wp() {
   return cnt;
 }
 
+int active_list_size(void) {
+  int cnt = 0;
+  WP *p = head;
+  while (p != NULL) {
+    cnt++;
+    p = p->next;
+  }
+  return cnt;
+}
+
+int free_list_size(void) {
+  int cnt = 0;
+  WP *p = free_;
+  while (p != NULL) {
+    cnt++;
+    p = p->next;
+  }
+  return cnt;
+}
+
 /**
  * @brief 从空闲监视点池分配一个可用节点
  *
