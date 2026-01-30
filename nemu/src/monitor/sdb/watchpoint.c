@@ -125,45 +125,39 @@ static void insert_active_list_head(WP* wp) {
  * @details
  * Contract
  *
- *  - When:
- *      在 watchpoint 系统需要创建一个新的监视点时调用
+ * - When (调用时机):
+ *    在调试器系统（如 sdb）接收到用户新增监视点请求时调用。
  *
- *  - Preconditions (前置条件):
- *      1. 调用者应确保至少有一个空闲监视点可用；
- *      2. 输入的表达式字符串非空；
- *      3. 输入的表达式长度，不超过监视点表达式最大长度。
- *      若前置条件不满足，直接 assert 失败
+ * - Preconditions (前置条件):
+ *    1. 输入的表达式字符串 `expr_str` 必须非空 (Non-NULL)；
+ *    2. 表达式长度必须小于 `WATCHPOINT_EXPR_MAX_LEN`；
+ *    3. 监视点求值函数指针 `wp_eval` 必须已成功注册/初始化；
+ *    若违反上述硬性前置条件，函数将直接触发 assert 终止程序。
  *
- *  - Behavior (行为):
- *      1. 从空闲池中获取一个 WP 节点；
- *      2. 初始化节点：
- *         - 为该监视点分配一个新的、唯一的编号 NO；
- *         - 设置监视点状态为启用（enabled = true）；
- *         - 复制表达式字符串到监视点的表达式字段；
- *         - 计算并存储表达式的初始值到 last_value 字段（表达式的求值由 watchpoint 模块内部完成）；
- *      3. 将该节点插入 active list 的头部（LIFO 语义）。
- *
- *  - Postconditions (后置条件):
- *      1. 返回值为创建好的 WP*；
- *      2. 返回的 WP 拥有一个在当前系统中唯一的 NO；
- *      3. active list 链表头为新创建节点；
- *      4. 如果空闲池为空，则直接 assert；
- *      5. 其他节点保持原有顺序，未被破坏；
- *      6. 内部状态保持一致，方便后续 watchpoint_diff_and_collect 调用。
- *
- *  - Invariants (不变式):
- *      NO 的性质：
- *      1. 每个监视点的 NO 在其生命周期内保持不变；
- *      2. 不同监视点的 NO 不重复；
- *      4. active list 的遍历顺序遵循 LIFO 语义，与 NO 无关;
- *      5. 所有成功创建的监视点，其 NO 严格单调递增。
- *      
- *      分层设计原则：
- *      CPU / diff 层不直接访问链表或节点内部字段。
+ * - Behavior (内部行为):
+ *    1. 首先尝试对表达式进行初次求值：
+ *       - 若求值失败（如表达式语法错误），函数立即返回 NULL，不消耗空闲池资源；
+ *    2. 从空闲池（free list）中申请一个 WP 节点：
+ *       - 此时若空闲池为空，根据及早崩溃原则，直接触发 assert 终止程序；
+ *    3. 节点初始化逻辑：
+ *       - 分配当前唯一的 `next_wp_no` 并使全局计数自增；
+ *       - 设置 `enabled` 状态为 true；
+ *       - 物理拷贝 `expr_str` 并存储 `last_value` 以供后续 diff 使用；
+ *    4. 结构维护：采用头插法（Head Insertion）将节点挂载至 active list。
  *    
+ * - Postconditions (后置条件):
+ *    1. 成功时：返回指向新 WP 的指针，且该节点已位于 active list 头部 (LIFO)；
+ *    2. 失败时：若因表达式无效导致失败，返回 NULL，且系统状态（NO、链表）保持原样；
+ *    3. 资源完整性：除了新插入的节点，active list 中原有节点的顺序和数据不被破坏。
  *
- * @param expr_str 用户输入的监视表达式字符串
- * @return WP* 分配到 active 列表的监视点，若空闲池为空直接触发 assert
+ * - Invariants (不变式):
+ *    1. 唯一性：在任何时刻，active list 中不存在两个 NO 相同的监视点；
+ *    2. 单调性：监视点的 NO 随创建时间严格单调递增，即便中间有节点被释放，NO 也不复用；
+ *    3. 优先级：active list 的首个节点永远是时间戳上最新创建的监视点。
+ *    4. 分层隔离：调用者（如 CPU 循环）仅通过暴露的接口感知变化，不应直接操作 WP 链表指针。
+ *
+ * @param expr_str 用户输入的监视表达式字符串（需符合表达式求值器语法）
+ * @return WP* 成功则返回新节点指针；若表达式非法则返回 NULL；若资源耗尽则触发 assert。
  */
 WP* new_wp(const char* expr_str) {
   assert(expr_str != NULL);                           // 非空表达式报错
