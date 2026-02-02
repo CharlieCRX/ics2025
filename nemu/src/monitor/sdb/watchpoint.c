@@ -13,7 +13,7 @@
 * See the Mulan PSL v2 for more details.
 ***************************************************************************************/
 
-#include "sdb.h"
+#include <sdb.h>
 
 #define NR_WP 32
 #define WATCHPOINT_EXPR_MAX_LEN 128
@@ -35,12 +35,6 @@ typedef struct watchpoint {
   struct watchpoint *next;                 // 链表指针
   bool enabled;                            // 是否启用
 } WP;
-
-typedef struct {
-  bool triggered;                  // 是否至少有一个监视点触发
-  int  count;                      // 触发监视点数量
-  const WP *list;                  // 触发监视点只读信息数组
-} WatchpointDiffResult;
 
 static WP wp_pool[NR_WP] = {};
 static WP *head = NULL, *free_ = NULL;
@@ -226,28 +220,89 @@ void free_wp(WP *wp) {
 }
 
 /**
- * @brief 检查当前指令执行后监视点是否触发，并收集触发信息
+ * @brief
+ *  在指令边界上检测监视点状态变化，并收集变化结果。
  *
  * @details
  * Contract:
- *  - When: 在每条指令执行完成后被调用
- *  - Behavior:
- *      1. 遍历 watchpoint 系统中所有当前启用的监视点，
- *         按照“最近创建优先”顺序处理；
- *      2. 对每个监视点，重新求值其表达式，
- *         并与上一次记录的值比较；
- *      3. 收集所有值发生变化的监视点信息。
- *  - Postcondition:
- *      - triggered: 如果至少有一个监视点触发，则 true，否则 false
- *      - count: 触发的监视点数量
- *      - list: 包含触发监视点的只读信息，顺序按最近创建优先
- *  - Invariant:
- *      - CPU / diff 层不关心内部存储结构
- *      - 内部遍历顺序与触发逻辑在 watchpoint 层保持一致
  *
- * @return WatchpointDiffResult 触发信息结构
+ *  - When:
+ *      - 在每条指令执行完成后被调用一次。
+ *
+ *  - Behavior:
+ *      1. 遍历当前所有「启用的」监视点（enabled == true），
+ *         遍历顺序为“最近创建的监视点优先”（LIFO 顺序）；
+ *      2. 对每个启用的监视点，重新求值其表达式；
+ *      3. 将本次求值结果与该监视点记录的 last_value 进行比较；
+ *      4. 若值发生变化：
+ *          - 将该监视点加入本次 diff 的变化列表；
+ *      5. 在完成比较后，更新该监视点的 last_value 为本次求值结果；
+ *      6. disabled 的监视点在本次 diff 中：
+ *          - 不参与表达式求值；
+ *          - 不更新其内部状态。
+ *
+ *  - Postcondition:
+ *      - triggered:
+ *          - 若本次 diff 中至少有一个监视点发生变化，则为 true；
+ *          - 否则为 false。
+ *      - count:
+ *          - 表示本次 diff 中发生变化的监视点数量。
+ *      - list:
+ *          - 指向 watchpoint 层内部维护的只读数组，
+ *            该数组包含所有发生变化的监视点指针；
+ *          - 数组元素顺序与遍历顺序一致（最近创建优先）；
+ *          - 该指针在下一次调用 watchpoint_diff_and_collect 之前保持有效；
+ *          - 所有权始终归 watchpoint 子系统所有，调用者不得释放或修改。
+ *
+ *  - Invariant:
+ *      - 本函数不负责任何输出、停机或控制流决策；
+ *      - CPU / sdb / diff 上层仅通过返回值感知变化结果，
+ *        不依赖 watchpoint 的内部存储结构；
+ *      - watchpoint 的内部链表结构在本函数执行过程中保持一致。
+ *      - 调用者负责确保在调用本函数前已正确注册求值函数 wp_eval。
+ *      - 默认表达式合法且求值成功，求值失败视为程序错误。
+ *      - head 指向的链表结构是按照最新创建的监视点优先排列的。
+ *
+ * @return
+ *  WatchpointChanges
+ *      - 描述本次指令执行后监视点系统观测到的所有状态变化。
  */
-WatchpointDiffResult watchpoint_diff_and_collect(void);
+WatchpointChanges watchpoint_diff_and_collect(void) {
+  assert(wp_eval != NULL);  // 未设置求值函数视为程序错误
+  static WatchpointChange changes_buffer[NR_WP];
+  int change_count = 0;
+
+  WP *cur = head;
+  while (cur != NULL) {
+    if (!cur->enabled) {
+      cur = cur->next;
+      continue;
+    }
+
+    // 计算新值
+    word_t new_value;
+    bool ok = wp_eval(cur->expr_str, &new_value);
+    assert(ok);  // 求值失败视为程序错误
+
+    // 比较并记录变化
+    if (new_value != cur->last_value) {
+      assert(change_count < NR_WP);  // 变化数量不应超过监视点总数
+      changes_buffer[change_count].wp = cur;
+      changes_buffer[change_count].old_value = cur->last_value;
+      changes_buffer[change_count].new_value = new_value;
+      change_count++;
+    }
+
+    // 更新 last_value
+    cur->last_value = new_value;
+    cur = cur->next;
+  }
+
+  WatchpointChanges result;
+  result.count = change_count;
+  result.changes = changes_buffer;
+  return result;
+}
 
 void wp_format(const WP *wp, char *buf, size_t len) {
   const int EXPR_COL_WIDTH = 24;

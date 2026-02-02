@@ -18,6 +18,18 @@
 
 #include <common.h>
 
+typedef struct {
+  const WP *wp;        // 发生变化的监视点（只读）
+  word_t old_value;    // 变化前的值
+  word_t new_value;    // 变化后的值
+} WatchpointChange;
+
+
+typedef struct {
+  int count;
+  const WatchpointChange *changes;
+} WatchpointChanges;
+
 word_t expr(char *e, bool *success);
 
 #endif
