@@ -286,3 +286,15 @@ void watchpoints_display(void) {
 
   wp_foreach_active(wp_display_visitor, NULL);
 }
+
+bool wp_delete_by_no(int no) {
+  WP *cur = head;
+  while (cur != NULL) {
+    if (cur->NO == no) {
+      free_wp(cur);
+      return true;
+    }
+    cur = cur->next;
+  }
+  return false;
+}

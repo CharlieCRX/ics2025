@@ -31,6 +31,7 @@ WP* new_wp(const char *expr_str);
 void free_wp(WP *wp);
 void wp_set_eval_func(bool (*func)(const char *expr, word_t *result));
 void watchpoints_display(void);
+bool wp_delete_by_no(int no);
 
 /* We use the `readline' library to provide more flexibility to read from stdin. */
 static char* rl_gets() {
@@ -59,6 +60,7 @@ static int cmd_info(char *args);
 static int cmd_x(char *args);
 static int cmd_p(char *args);
 static int cmd_w(char *args);
+static int cmd_delete_wp_by_no(char *args);
 
 static struct {
   const char *name;
@@ -73,6 +75,7 @@ static struct {
   { "x", "Evaluate EXPR as start address, output N consecutive 4-byte values in hex: x N EXPR", cmd_x},
   { "p", "Evaluate the expression EXPR and print the result: p EXPR", cmd_p },
   { "w", "Set a watchpoint for expression EXPR: w EXPR", cmd_w },
+  { "d", "Delete the watchpoint with number N: d N", cmd_delete_wp_by_no },
 };
 
 #define NR_CMD ARRLEN(cmd_table)
@@ -240,6 +243,28 @@ static int cmd_w(char *args) {
   }
 
   printf("Watchpoint created successfully\n");
+  return 0;
+}
+
+static int cmd_delete_wp_by_no(char *args) {
+  if (args == NULL) {
+    printf("Usage: d N\n");
+    return 0;
+  }
+
+  int no = atoi(args);
+  if (no < 0) {
+    printf("Invalid watchpoint number: %s\n", args);
+    return 0;
+  }
+
+  bool success = wp_delete_by_no(no);
+  if (!success) {
+    printf("No watchpoint with number %d\n", no);
+    return 0;
+  }
+
+  printf("Watchpoint %d deleted successfully\n", no);
   return 0;
 }
 
