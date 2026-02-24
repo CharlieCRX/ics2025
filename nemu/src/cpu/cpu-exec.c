@@ -39,22 +39,23 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 #endif
   if (g_print_step) { IFDEF(CONFIG_ITRACE, puts(_this->logbuf)); }
   IFDEF(CONFIG_DIFFTEST, difftest_step(_this->pc, dnpc));
-  WatchpointChanges changes = watchpoint_diff_and_collect();
-  if (changes.count > 0) {
-    nemu_state.state = NEMU_STOP;
-    Log("Watchpoint changes detected: %d changes", changes.count);
-    for (int i = 0; i < changes.count; i++) {
-      const WatchpointChange *change = &changes.changes[i];
-      Log("  Watchpoint %d: 0x%x -> 0x%x",
-          change->wp_no, 
-          change->old_value, 
-          change->new_value);
-      printf("Watchpoint %d: 0x%x -> 0x%x\n",
-          change->wp_no, 
-          change->old_value, 
-          change->new_value);
-    }
-  }
+  IFDEF(CONFIG_WATCHPOINT,
+    WatchpointChanges changes = watchpoint_diff_and_collect();
+    if (changes.count > 0) {
+      nemu_state.state = NEMU_STOP;
+      Log("Watchpoint changes detected: %d changes", changes.count);
+      for (int i = 0; i < changes.count; i++) {
+        const WatchpointChange *change = &changes.changes[i];
+        Log("  Watchpoint %d: 0x%x -> 0x%x",
+            change->wp_no, 
+            change->old_value, 
+            change->new_value);
+        printf("Watchpoint %d: 0x%x -> 0x%x\n",
+            change->wp_no, 
+            change->old_value, 
+            change->new_value);
+      }
+    });
 }
 
 static void exec_once(Decode *s, vaddr_t pc) {

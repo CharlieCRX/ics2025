@@ -191,6 +191,13 @@ config DIFFTEST_REF_NAME
   default "kvm" if DIFFTEST_REF_KVM
   default "spike" if DIFFTEST_REF_SPIKE
   default "none"
+
+config WATCHPOINT
+    bool "Enable watchpoint"
+    default y
+    help
+      Enable runtime watchpoint checking. 
+      When disabled, CPU execution will not check watchpoints, improving performance.
 endmenu
 
 if MODE_SYSTEM
