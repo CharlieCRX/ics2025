@@ -26,9 +26,6 @@
  */
 #define MAX_INST_TO_PRINT 10
 
-typedef struct WatchpointChanges WatchpointChanges;
-WatchpointChanges watchpoint_diff_and_collect(void);
-
 CPU_state cpu = {};
 uint64_t g_nr_guest_inst = 0;
 static uint64_t g_timer = 0; // unit: us
@@ -49,7 +46,9 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
     for (int i = 0; i < changes.count; i++) {
       const WatchpointChange *change = &changes.changes[i];
       Log("  Watchpoint %d: 0x%x -> 0x%x",
-          change->wp->NO, change->old_value, change->new_value);
+          change->wp_no, 
+          change->old_value, 
+          change->new_value);
     }
   }
 }

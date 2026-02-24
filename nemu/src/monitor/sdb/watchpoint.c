@@ -13,7 +13,7 @@
 * See the Mulan PSL v2 for more details.
 ***************************************************************************************/
 
-#include <sdb.h>
+#include <monitor/sdb/sdb.h>
 
 #define NR_WP 32
 #define WATCHPOINT_EXPR_MAX_LEN 128
@@ -287,7 +287,7 @@ WatchpointChanges watchpoint_diff_and_collect(void) {
     // 比较并记录变化
     if (new_value != cur->last_value) {
       assert(change_count < NR_WP);  // 变化数量不应超过监视点总数
-      changes_buffer[change_count].wp = cur;
+      changes_buffer[change_count].wp_no = cur->NO;
       changes_buffer[change_count].old_value = cur->last_value;
       changes_buffer[change_count].new_value = new_value;
       change_count++;
