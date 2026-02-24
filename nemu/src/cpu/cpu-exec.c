@@ -49,6 +49,10 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
           change->wp_no, 
           change->old_value, 
           change->new_value);
+      printf("Watchpoint %d: 0x%x -> 0x%x\n",
+          change->wp_no, 
+          change->old_value, 
+          change->new_value);
     }
   }
 }
