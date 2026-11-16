@@ -223,7 +223,12 @@ static word_t eval_primary_expr(int p, bool *success) {
   } else if (type == TK_HEX) {
     return (word_t)strtoul(tokens[p].str, NULL, 16);
   } else if (type == TK_REG) {
-    // 调用现成接口，注意跳过 '$' 符号 (tokens[p].str + 1)
+    // 1. 对于 $pc 特殊处理
+    if(strcmp(tokens[p].str, "$pc") == 0) {
+      return cpu.pc;
+    }
+
+    // 2. 非 $pc 则查询通用寄存器接口，注意跳过 '$' 符号 (tokens[p].str + 1)
     return isa_reg_str2val(tokens[p].str + 1, success);
   }
 
