@@ -131,6 +131,36 @@ case("basic", "andi 负立即数", "andi t0, t0, -2048", [("t0", -1)], 0xfffff80
 case("basic", "slti 有符号", "slti t0, t0, -1", [("t0", -2)], 1)
 case("basic", "sltiu 立即数符号扩展", "sltiu t0, t0, -1", [("t0", 0xfffffffe)], 1)
 
+# U 型立即数是 20 位，放在结果的高 20 位；AUIPC 以被测指令地址为基准。
+case("upper", "lui 清除旧值", "lui t0, 0", [("t0", -1)], 0)
+case("upper", "lui 低位立即数", "lui t0, 1", [("t0", -1)], 0x00001000)
+case("upper", "lui 正数边界", "lui t0, 0x7ffff", [("t0", 1)], 0x7ffff000)
+case("upper", "lui 最高位", "lui t0, 0x80000", [("t0", 1)], 0x80000000)
+case("upper", "lui 全部立即数位", "lui t0, 0xfffff", [("t0", 1)], 0xfffff000)
+case("upper", "lui 不同目标寄存器", "lui t2, 0x12345", [("t0", 7), ("t2", -1)], 0x12345000)
+case("upper", "lui 写入 x0", "lui zero, 0xfffff", [("t0", 7)], 0)
+
+
+def auipc_case(name, inst, setup, offset):
+    case("upper", name, inst, setup, offset)
+    CASES[-1]["pc_relative"] = True
+
+
+auipc_case("auipc 零偏移 使用当前 PC", "auipc t0, 0", [("t0", -1)], 0)
+auipc_case("auipc 正偏移", "auipc t0, 1", [("t0", -1)], 0x1000)
+auipc_case("auipc 负偏移", "auipc t0, 0xfffff", [("t0", 1)], 0xfffff000)
+auipc_case("auipc 正数边界与回绕", "auipc t0, 0x7ffff", [("t0", 1)], 0x7ffff000)
+auipc_case("auipc 最高位与回绕", "auipc t0, 0x80000", [("t0", 1)], 0x80000000)
+auipc_case("auipc 不同 PC 和目标寄存器", "auipc t2, 0x12345", [("t0", 7), ("t1", 8), ("t2", -1)], 0x12345000)
+auipc_case("auipc 写入 x0", "auipc zero, 1", [("t0", 7)], 0x1000)
+
+case("arithmetic", "add 负数加一", "add t0, t0, t1", [("t0", -1), ("t1", 1)], 0)
+case("arithmetic", "addi 最大正立即数", "addi t0, t0, 2047", [("t0", 1)], 2048)
+case("arithmetic", "addi 正溢出回绕", "addi t0, t0, 1", [("t0", 0x7fffffff)], 0x80000000)
+case("arithmetic", "addi 源目标不同", "addi t2, t0, -1", [("t0", 1), ("t2", 5)], 0)
+case("arithmetic", "sub 负溢出回绕", "sub t0, t0, t1", [("t0", 0x80000000), ("t1", 1)], 0x7fffffff)
+case("arithmetic", "sub 相同源寄存器", "sub t2, t0, t0", [("t0", -1), ("t2", 7)], 0)
+
 MEM_ADDR = 0x80001000
 MEM_INITIAL = bytes.fromhex("11 80 7f ff 00 80 34 12 78 56 34 12 aa bb cc dd")
 
@@ -310,14 +340,15 @@ def run_case(index, c, args, nemu, work):
     try:
         binary, pc = build(c, args.prefix, work, "case{:03d}".format(index))
         before, after, memory = execute(nemu, binary, pc, c)
-        errors = compare(c, pc, before, after, c["exp"])
+        expected = u32(pc + c["exp"]) if c.get("pc_relative") else c["exp"]
+        errors = compare(c, pc, before, after, expected)
         if memory is not None:
             errors.extend(compare_memory(memory[1], c["memory_after"]))
         if args.selftest:
             for reg in REGS + ["pc"]:
                 changed = after.copy()
                 changed[reg] ^= 1
-                if not compare(c, pc, before, changed, c["exp"]):
+                if not compare(c, pc, before, changed, expected):
                     errors.append("比较器未发现 {} 的错误".format(reg))
             if memory is not None:
                 for offset in range(len(memory[1])):
@@ -349,7 +380,7 @@ def main():
         return 2
     if args.list:
         for c in cases:
-            result = c["memory_after"].hex(' ') if c["inst"].startswith(("sb ", "sh ", "sw ")) else "0x{:08x}".format(c["exp"])
+            result = c["memory_after"].hex(' ') if c["inst"].startswith(("sb ", "sh ", "sw ")) else "{}0x{:08x}".format("PC + " if c.get("pc_relative") else "", c["exp"])
             print("[{}] {} -> {}".format(c["group"], c["name"], result))
         return 0
     nemu = Path(args.nemu).resolve()

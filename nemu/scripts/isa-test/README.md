@@ -12,6 +12,8 @@ python3 scripts/isa-test/run_isa_test.py
 python3 scripts/isa-test/run_isa_test.py -j8  # 最多同时运行 8 个用例
 python3 scripts/isa-test/run_isa_test.py -j1  # 串行运行
 python3 scripts/isa-test/run_isa_test.py --only sra
+python3 scripts/isa-test/run_isa_test.py --only lui
+python3 scripts/isa-test/run_isa_test.py --only auipc
 python3 scripts/isa-test/run_isa_test.py --only load
 python3 scripts/isa-test/run_isa_test.py --only store
 python3 scripts/isa-test/run_isa_test.py --list
@@ -42,4 +44,6 @@ case("shift", "srl 位移 7", "srl t0, t0, t1",
 
 `case` 适用于第一操作数是目标寄存器、执行后 PC 顺序加 4 且不修改内存的指令。`mem_case` 适用于已有测试区内的 load/store，`t4` 指向测试区第 8 字节；存储期望值可用 `stored(字节偏移, 宽度, 值)` 创建。可设置不同的目标寄存器、源寄存器重合和 x0 写入。用例输入、目标寄存器、期望值应互相核对；观察到准备阶段失败时，先检查装载依赖和监视器，再判断被测指令。
 
-目前覆盖部分整数算术、逻辑、比较和移位指令的 43 个场景，以及 lb、lbu、lh、lhu、lw、sb、sh、sw 的 20 个场景，包含符号扩展、正负偏移、截断、字节序和相邻内存不变。它不能证明所有输入和译码组合正确，也尚未测试非对齐访问、分支与跳转、异常、非法编码、CSR 等；这些需要扩展生成器和状态比较。特别是不能只用结果相同的输入判断两条指令是否被正确区分。随着实验进度，继续添加能区分相邻编码及边界条件的用例，并结合 cpu-tests 和 difftest 使用。
+目前包含 83 个场景，覆盖部分整数算术、逻辑、比较、移位和访存指令。其中 `lui` 和 `auipc` 各有 7 个场景，覆盖立即数边界、最高位、不同目标寄存器和 x0；`auipc` 的预期结果由被测指令的地址加上 U 型立即数，按 32 位回绕计算。访存用例覆盖符号扩展、正负偏移、截断、字节序和相邻内存不变。
+
+这些用例不能证明所有输入和译码组合正确，也尚未测试非对齐访问、分支与跳转、异常、非法编码、CSR 等；这些需要扩展生成器和状态比较。特别是不能只用结果相同的输入判断两条指令是否被正确区分。随着实验进度，继续添加能区分相邻编码及边界条件的用例，并结合 cpu-tests 和 difftest 使用。
