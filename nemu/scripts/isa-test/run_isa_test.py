@@ -67,6 +67,56 @@ def m_sltu(a, b):
     return int(u32(a) < u32(b))
 
 
+# --- M 扩展：乘法 / 除法 / 取余 -------------------------------------------
+# 与 C 不同，这里先统一归一化再算，不依赖宿主的整型宽度和溢出行为。
+
+def m_mul(a, b):
+    """低 32 位乘积，与符号解释无关。"""
+    return u32(u32(a) * u32(b))
+
+
+def m_mulh(a, b):
+    """有符号 × 有符号的高 32 位。"""
+    return u32((s32(a) * s32(b)) >> 32)
+
+
+def m_mulhu(a, b):
+    """无符号 × 无符号的高 32 位。"""
+    return u32((u32(a) * u32(b)) >> 32)
+
+
+def m_mulhsu(a, b):
+    """有符号 rs1 × 无符号 rs2 的高 32 位（只有 rs1 做符号扩展）。"""
+    return u32((s32(a) * u32(b)) >> 32)
+
+
+def _trunc_div(a, b):
+    """C 语义的整除：商向零截断（Python 的 // 是向下取整，不能直接用）。"""
+    q = abs(a) // abs(b)
+    return q if (a < 0) == (b < 0) else -q
+
+
+def m_div(a, b):
+    """除零返回全 1；INT_MIN / -1 返回 INT_MIN（与 RISC-V 规范一致）。"""
+    return 0xFFFFFFFF if u32(b) == 0 else u32(_trunc_div(s32(a), s32(b)))
+
+
+def m_divu(a, b):
+    return 0xFFFFFFFF if u32(b) == 0 else u32(u32(a) // u32(b))
+
+
+def m_rem(a, b):
+    """余数符号跟被除数；除零返回被除数；INT_MIN % -1 为 0。"""
+    if u32(b) == 0:
+        return u32(a)
+    x, y = s32(a), s32(b)
+    return u32(x - _trunc_div(x, y) * y)
+
+
+def m_remu(a, b):
+    return u32(a) if u32(b) == 0 else u32(u32(a) % u32(b))
+
+
 # ---------------------------------------------------------------- 用例表
 
 CASES = []
@@ -197,6 +247,101 @@ mem_case("store sw 零偏移", "sw t0, 0(t4)", [("t0", 0xdeadbeef)], 0, stored(8
 mem_case("store sw 负偏移", "sw t0, -8(t4)", [("t0", 0x13579bdf)], 0, stored(0, 4, 0x13579bdf))
 mem_case("store sw 正偏移", "sw t0, 4(t4)", [("t0", 0x01234567)], 0, stored(12, 4, 0x01234567))
 mem_case("store sw x0", "sw zero, -4(t4)", [], 0, stored(4, 4, 0))
+
+# --- M 扩展：乘法 ---------------------------------------------------------
+# 乘法的关键是「结果来自哪一段位」：mul 取低 32 位，另外三条取高 32 位，
+# 而 mulh / mulhu / mulhsu 的差别只在「谁做符号扩展」。
+MUL_PAIRS = [
+    (0x00000000, 0x00000000),  # 0 * 0
+    (0x00000001, 0x00000001),  # 最小正数
+    (0xFFFFFFFF, 0xFFFFFFFF),  # -1 * -1
+    (0xFFFFFFFF, 0x00000001),  # -1 * 1
+    (0x7FFFFFFF, 0x7FFFFFFF),  # INT_MAX * INT_MAX
+    (0x80000000, 0x80000000),  # INT_MIN * INT_MIN
+    (0x80000000, 0xFFFFFFFF),  # INT_MIN * (-1)
+    (0xFFFFFFFF, 0x00000002),  # -1 * 2
+    (0x40000000, 0x00000004),  # 2^30 * 4，恰好溢出 32 位
+    (0x00010000, 0x00010000),  # 2^16 * 2^16，恰好溢出 32 位
+    (0x0000FFFF, 0x0000FFFF),  # 低半字相乘，不进位到高半字
+    (0xAAAAAAAA, 0x55555555),  # 交替位模式
+    (0x12345678, 0x9ABCDEF0),  # 一般值
+    (0xDEADBEEF, 0xCAFEBABE),  # 一般值
+    (0x7FFFFFFF, 0x00000002),  # INT_MAX * 2
+    (0x80000000, 0x00000002),  # INT_MIN * 2
+    (0xFFFFD3C7, 0x00001A85),  # -11321 * 6789
+]
+for a, b in MUL_PAIRS:
+    case("mul", "mul {:08x}*{:08x}".format(a, b), "mul t0, t0, t1",
+         [("t0", a), ("t1", b)], m_mul(a, b))
+
+# 同一组操作数同时喂给 mulh / mulhu / mulhsu，方便对照三者的符号差异。
+HI_PAIRS = [
+    (0x80000000, 0x80000000),  # 2^62：三条指令结果两两不同
+    (0x7FFFFFFF, 0x7FFFFFFF),  # 高 32 位 0x3fffffff
+    (0xFFFFFFFF, 0xFFFFFFFF),  # (-1) * (-1) = 1，高位为 0
+    (0x80000000, 0xFFFFFFFF),  # INT_MIN * (-1)，高位为 0
+    (0x7FFFFFFF, 0xFFFFFFFF),  # INT_MAX * (-1)，结果为负
+    (0x40000000, 0x40000000),  # 2^60
+    (0xDEADBEEF, 0xCAFEBABE),  # 一般值
+    (0xAAAAAAAA, 0xAAAAAAAA),  # 一般值
+    (0xFFFF0000, 0xFFFF0000),  # 高半字全 1
+    (0x00000001, 0x00000001),  # 高位为 0
+    (0x00000000, 0x12345678),  # rs1 为 0
+    (0x12345678, 0x00000000),  # rs2 为 0
+    (0x7FFFFFFF, 0x00000002),  # 正数溢出到 33 位
+    (0x80000000, 0x00000002),  # 负数溢出到 33 位
+    (0x80000000, 0x7FFFFFFF),  # 符号位不同
+    (0x7FFFFFFF, 0x80000000),  # 与上一条互换 rs1/rs2
+]
+for a, b in HI_PAIRS:
+    case("mul", "mulh {:08x}*{:08x}".format(a, b), "mulh t0, t0, t1",
+         [("t0", a), ("t1", b)], m_mulh(a, b))
+    case("mul", "mulhu {:08x}*{:08x}".format(a, b), "mulhu t0, t0, t1",
+         [("t0", a), ("t1", b)], m_mulhu(a, b))
+    case("mul", "mulhsu {:08x}*{:08x}".format(a, b), "mulhsu t0, t0, t1",
+         [("t0", a), ("t1", b)], m_mulhsu(a, b))
+
+# --- M 扩展：除法与取余 ---------------------------------------------------
+# 重点覆盖规范里的三个特例：除零、INT_MIN / -1、向零截断（Python 的 // 是
+# 向下取整，所以模型里单独实现了 _trunc_div）。
+DIV_PAIRS = [
+    (0x00000007, 0x00000000),  # 正数除零
+    (0xFFFFFFF9, 0x00000000),  # 负数除零
+    (0x80000000, 0x00000000),  # INT_MIN 除零
+    (0x00000000, 0x00000000),  # 0 除零（0/0）
+    (0x00000007, 0x00000002),  # 正 / 正
+    (0x00000007, 0xFFFFFFFE),  # 正 / 负，检验向零截断
+    (0xFFFFFFF9, 0x00000002),  # 负 / 正，检验向零截断
+    (0xFFFFFFF9, 0xFFFFFFFE),  # 负 / 负
+    (0x80000000, 0xFFFFFFFF),  # INT_MIN / -1，唯一溢出情形
+    (0x80000000, 0x00000002),  # INT_MIN / 2
+    (0x7FFFFFFF, 0xFFFFFFFF),  # INT_MAX / -1
+    (0x00000000, 0x00000005),  # 0 / 正数
+    (0x00000064, 0x00000007),  # 整除且有余数
+    (0x00000001, 0x80000000),  # 商为 0，余数为被除数
+    (0xFFFFFFFF, 0xFFFFFFFF),  # -1 / -1
+    (0xFFFFFFFF, 0x00000001),  # -1 / 1
+]
+for a, b in DIV_PAIRS:
+    case("div", "div {:08x}/{:08x}".format(a, b), "div t0, t0, t1",
+         [("t0", a), ("t1", b)], m_div(a, b))
+    case("div", "divu {:08x}/{:08x}".format(a, b), "divu t0, t0, t1",
+         [("t0", a), ("t1", b)], m_divu(a, b))
+    case("div", "rem {:08x}%{:08x}".format(a, b), "rem t0, t0, t1",
+         [("t0", a), ("t1", b)], m_rem(a, b))
+    case("div", "remu {:08x}%{:08x}".format(a, b), "remu t0, t0, t1",
+         [("t0", a), ("t1", b)], m_remu(a, b))
+
+# 目标寄存器字段：写入 x0、rd 与 rs2 重合、rd 不是 t0。
+case("mul", "mul 写入 x0", "mul zero, t0, t1", [("t0", 7), ("t1", 9)], 0)
+case("mul", "mulh 目标与 rs2 重合", "mulh t1, t0, t1",
+     [("t0", 0x80000000), ("t1", 0x80000000)], m_mulh(0x80000000, 0x80000000))
+case("mul", "mulhsu 不同目标寄存器", "mulhsu t2, t0, t1",
+     [("t0", 0x80000000), ("t1", 0x80000000), ("t2", 0x55555555)],
+     m_mulhsu(0x80000000, 0x80000000))
+case("div", "div 写入 x0", "div zero, t0, t1", [("t0", 7), ("t1", 0)], 0)
+case("div", "rem 不同目标寄存器", "rem t2, t0, t1",
+     [("t0", 0xFFFFFFF9), ("t1", 2), ("t2", 1)], m_rem(0xFFFFFFF9, 2))
 
 REGS = ("$0 ra sp gp tp t0 t1 t2 s0 s1 a0 a1 a2 a3 a4 a5 "
         "a6 a7 s2 s3 s4 s5 s6 s7 s8 s9 s10 s11 t3 t4 t5 t6").split()
@@ -368,13 +513,16 @@ def main():
     ap.add_argument("--nemu", default=str(NEMU_ROOT / "build/riscv32-nemu-interpreter"))
     ap.add_argument("--prefix", default="riscv64-linux-gnu-")
     ap.add_argument("--only", help="筛选名称包含的子串")
+    ap.add_argument("--group", help="按分组筛选，例如 mul / div / shift / basic / upper / arithmetic / memory")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--selftest", action="store_true", help="篡改实际快照，验证宿主机比较器能发现错误")
     ap.add_argument("--keep", action="store_true", help="保留临时产物")
     ap.add_argument("-j", "--jobs", type=positive_int, default=8, metavar="N",
                     help="最多同时运行 N 个用例（默认 8；-j1 串行）")
     args = ap.parse_args()
-    cases = [c for c in CASES if not args.only or args.only in c["name"]]
+    cases = [c for c in CASES
+             if (not args.group or c["group"] == args.group)
+             and (not args.only or args.only in c["name"])]
     if not cases:
         print("没有匹配的用例", file=sys.stderr)
         return 2

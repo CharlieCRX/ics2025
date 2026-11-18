@@ -16,6 +16,8 @@ python3 scripts/isa-test/run_isa_test.py --only lui
 python3 scripts/isa-test/run_isa_test.py --only auipc
 python3 scripts/isa-test/run_isa_test.py --only load
 python3 scripts/isa-test/run_isa_test.py --only store
+python3 scripts/isa-test/run_isa_test.py --group mul  # M 扩展的乘法（68 个）
+python3 scripts/isa-test/run_isa_test.py --group div  # M 扩展的除法与取余（66 个）
 python3 scripts/isa-test/run_isa_test.py --list
 python3 scripts/isa-test/run_isa_test.py --selftest
 python3 scripts/isa-test/run_isa_test.py --keep
@@ -44,6 +46,31 @@ case("shift", "srl 位移 7", "srl t0, t0, t1",
 
 `case` 适用于第一操作数是目标寄存器、执行后 PC 顺序加 4 且不修改内存的指令。`mem_case` 适用于已有测试区内的 load/store，`t4` 指向测试区第 8 字节；存储期望值可用 `stored(字节偏移, 宽度, 值)` 创建。可设置不同的目标寄存器、源寄存器重合和 x0 写入。用例输入、目标寄存器、期望值应互相核对；观察到准备阶段失败时，先检查装载依赖和监视器，再判断被测指令。
 
-目前包含 83 个场景，覆盖部分整数算术、逻辑、比较、移位和访存指令。其中 `lui` 和 `auipc` 各有 7 个场景，覆盖立即数边界、最高位、不同目标寄存器和 x0；`auipc` 的预期结果由被测指令的地址加上 U 型立即数，按 32 位回绕计算。访存用例覆盖符号扩展、正负偏移、截断、字节序和相邻内存不变。
+目前包含 217 个场景，覆盖部分整数算术、逻辑、比较、移位、M 扩展乘除法、访存和 U 型指令。其中 `lui` 和 `auipc` 各有 7 个场景，覆盖立即数边界、最高位、不同目标寄存器和 x0；`auipc` 的预期结果由被测指令的地址加上 U 型立即数，按 32 位回绕计算。访存用例覆盖符号扩展、正负偏移、截断、字节序和相邻内存不变。
+
+### M 扩展（mul / mulh / mulhu / mulhsu / div / divu / rem / remu）
+
+共 134 个场景，分两组：`--group mul`（68 个）和 `--group div`（66 个）。可用 `--group` 按分组筛选，`--only` 则按名称子串筛选。
+
+**乘法。** `mul` 只保留低 32 位、与符号无关，所以重点选“高位会被丢掉”的输入：`2^30 * 4`、`2^16 * 2^16`、`INT_MIN * 2`、`INT_MAX * INT_MAX`、`INT_MIN * (-1)` 等，共 17 对操作数。
+
+`mulh` / `mulhu` / `mulhsu` 使用**同一组 16 对操作数**，三条指令的期望值分别由模型计算，便于横向对照“谁做了符号扩展”：
+
+- `0xffffffff * 0xffffffff` 区分 `mulh`（有符号 1，高位 0）与 `mulhu`（无符号，高位 `0xfffffffe`）；
+- `0x80000000 * 0x80000000` 区分 `mulhsu`（高位 `0xc0000000`）与前两者（高位 `0x40000000`）；
+- `0x80000000 * 0x7fffffff` 与互换 rs1/rs2 的一对，覆盖符号位不同且不满足交换对称的情形。
+
+**除法与取余。** 16 对操作数同时喂给 `div` / `divu` / `rem` / `remu`，覆盖规范里的三类特例：
+
+- 除零 4 组（正数、负数、`INT_MIN`、`0/0`）：`div` 与 `divu` 返回全 1，`rem` 与 `remu` 返回被除数；
+- `INT_MIN / -1`：唯一的有符号溢出，商为 `INT_MIN`、余数为 0；
+- 向零截断：`7 / -2`、`-7 / 2`、`-7 / -2` 等组合，检验余数符号跟随被除数。
+
+Python 的 `//` 和 `%` 是向下取整（`-7 // 2 == -4`），与 C/RISC-V 的向零截断不同，因此模型里用 `_trunc_div` 单独实现商，再用 `x - q*y` 反推余数。
+
+另有 5 个寄存器字段用例：写入 x0、`rd` 与 `rs2` 重合、`rd` 不是 `t0`。
+
+**排错提示。** 若 `divu` / `rem` / `remu` 的用例全部报 `ERROR`（NEMU 异常退出），而 `div` 正常，通常是 `INSTPAT` 的 funct3 写错：`mul=000`、`mulh=001`、`mulhsu=010`、`mulhu=011`、`div=100`、`divu=101`、`rem=110`、`remu=111`。模式与 `mul` 重复时后续几条永远不会被匹配到。
+
 
 这些用例不能证明所有输入和译码组合正确，也尚未测试非对齐访问、分支与跳转、异常、非法编码、CSR 等；这些需要扩展生成器和状态比较。特别是不能只用结果相同的输入判断两条指令是否被正确区分。随着实验进度，继续添加能区分相邻编码及边界条件的用例，并结合 cpu-tests 和 difftest 使用。
