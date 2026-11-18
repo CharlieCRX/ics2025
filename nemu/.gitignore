@@ -8,6 +8,8 @@
 !.gitignore
 !README.md
 !Kconfig
+/scripts/isa-test/.work/
+!/scripts/isa-test/run_isa_test.py
 diff.log
 include/config
 include/generated
